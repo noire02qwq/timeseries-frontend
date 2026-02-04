@@ -1,25 +1,42 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-border: hsl(240 10% 15%);
-  --color-input: hsl(240 10% 15%);
-  --color-ring: hsl(263 70% 60%);
-  --color-background: hsl(240 10% 3.9%);
-  --color-foreground: hsl(0 0% 98%);
-  --color-primary: hsl(263 70% 60%);
+  /* Blue color scheme */
+  --color-border: hsl(215 20% 20%);
+  --color-input: hsl(215 20% 20%);
+  --color-ring: hsl(217 91% 60%);
+  --color-background: hsl(222 47% 5%);
+  --color-foreground: hsl(210 40% 98%);
+
+  /* Primary - Blue */
+  --color-primary: hsl(217 91% 60%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(240 10% 12%);
-  --color-secondary-foreground: hsl(0 0% 98%);
-  --color-muted: hsl(240 10% 12%);
-  --color-muted-foreground: hsl(240 5% 64.9%);
-  --color-accent: hsl(217 91% 60%);
+
+  /* Secondary */
+  --color-secondary: hsl(215 25% 15%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+
+  /* Muted */
+  --color-muted: hsl(215 25% 15%);
+  --color-muted-foreground: hsl(215 20% 65%);
+
+  /* Accent - Lighter Blue */
+  --color-accent: hsl(199 89% 48%);
   --color-accent-foreground: hsl(0 0% 100%);
+
+  /* Destructive */
   --color-destructive: hsl(0 62.8% 50.6%);
   --color-destructive-foreground: hsl(0 0% 98%);
-  --color-card: hsl(240 10% 7%);
-  --color-card-foreground: hsl(0 0% 98%);
-  --color-popover: hsl(240 10% 7%);
-  --color-popover-foreground: hsl(0 0% 98%);
+
+  /* Card */
+  --color-card: hsl(222 47% 8%);
+  --color-card-foreground: hsl(210 40% 98%);
+
+  /* Popover */
+  --color-popover: hsl(222 47% 8%);
+  --color-popover-foreground: hsl(210 40% 98%);
+
+  /* Radius */
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
   --radius-sm: calc(0.5rem - 4px);
@@ -56,17 +73,46 @@ body {
   background-color: var(--color-muted-foreground);
 }
 
-/* Utility classes */
+/* Blue gradient utilities */
 .gradient-purple-blue {
-  background: linear-gradient(135deg, hsl(263, 70%, 50%) 0%, hsl(217, 91%, 60%) 100%);
+  background: linear-gradient(135deg, hsl(217, 91%, 50%) 0%, hsl(199, 89%, 48%) 100%);
 }
 
 .gradient-card {
-  background: linear-gradient(135deg, hsl(240, 10%, 8%) 0%, hsl(240, 10%, 6%) 100%);
+  background: linear-gradient(135deg, hsl(222, 47%, 10%) 0%, hsl(222, 47%, 7%) 100%);
 }
 
 .glass-effect {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(59, 130, 246, 0.05);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+/* Enhanced hover effects for interactive elements */
+.hover-glow {
+  transition: all 0.2s ease-in-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+  border-color: hsl(217, 91%, 60%);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
+}
+
+/* Button glow on hover */
+.btn-glow {
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
 }

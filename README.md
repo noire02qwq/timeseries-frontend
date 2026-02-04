@@ -1,67 +1,67 @@
 # DBPs Time Series Deep Learning Analysis Frontend
 
-基于 Electron-Vite + React + shadcn UI 的 DBPs（消毒副产物）时间序列深度学习分析前端应用。
+A modern Electron desktop application for deep learning analysis of Disinfection Byproducts (DBPs) time series data, built with Electron-Vite, React, and shadcn/ui.
 
-![UI Preview](https://img.shields.io/badge/Electron-39.2.6-47848F?logo=electron)
+![Electron](https://img.shields.io/badge/Electron-39.2.6-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-19.2.1-61DAFB?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1.7-38B2AC?logo=tailwindcss)
 
-## ✨ 特性
+## ✨ Features
 
-- 🎨 **现代暗色主题** - 参考 Gemini 和 ChatGPT 的紫蓝渐变配色
-- 📊 **完整工作流** - 数据上传、可视化、模型配置、训练监控、结果分析
-- 📈 **交互式图表** - 基于 Recharts 的时间序列可视化
-- ⚡ **实时训练监控** - 动态损失曲线和进度追踪
-- 🧠 **多模型支持** - LSTM、GRU、Transformer 架构选择
+- 🎨 **Modern Dark Theme** - Sleek blue gradient color scheme inspired by Gemini and ChatGPT
+- 📊 **Complete Workflow** - Data upload, visualization, model config, training monitor, results dashboard
+- 📈 **Interactive Charts** - Time series visualization powered by Recharts
+- ⚡ **Real-time Training Monitor** - Dynamic loss curves and progress tracking
+- 🧠 **Multi-model Support** - LSTM, GRU, Transformer architecture selection
 
-## 🛠️ 技术栈
+## 🛠️ Tech Stack
 
-- **框架**: Electron + Vite + React 19
-- **UI 组件**: shadcn/ui (Radix UI)
-- **样式**: Tailwind CSS 4
-- **图表**: Recharts
-- **图标**: Lucide React
+- **Framework**: Electron + Vite + React 19
+- **UI Components**: shadcn/ui (Radix UI)
+- **Styling**: Tailwind CSS 4
+- **Charts**: Recharts
+- **Icons**: Lucide React
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 环境要求
+### Requirements
 
 - Node.js 18+
-- Yarn 或 npm
+- Yarn or npm
 
-### 安装
+### Installation
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone git@github.com:noire02qwq/timeseries-frontend.git
 cd timeseries-frontend
 
-# 安装依赖
+# Install dependencies
 yarn install
 
-# 启动开发服务器
+# Start development server
 yarn dev
 ```
 
-### 构建
+### Build
 
 ```bash
-# 构建应用
+# Build the application
 yarn build
 
-# 构建特定平台
+# Build for specific platforms
 yarn build:win    # Windows
 yarn build:mac    # macOS
 yarn build:linux  # Linux
 ```
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 src/
 └── renderer/src/
     ├── components/
-    │   ├── ui/           # shadcn 基础组件
+    │   ├── ui/           # shadcn base components
     │   ├── DataUpload.jsx
     │   ├── TimeSeriesChart.jsx
     │   ├── ModelConfig.jsx
