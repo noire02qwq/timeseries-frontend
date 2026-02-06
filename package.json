@@ -30,6 +30,7 @@
     "date-fns": "^4.1.0",
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.469.0",
+    "papaparse": "^5.5.3",
     "recharts": "^2.15.0",
     "tailwind-merge": "^2.6.0"
   },

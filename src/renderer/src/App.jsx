@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Brain, Database, Settings, LineChart, BarChart3 } from 'lucide-react'
+import { Brain, Database, Settings, LineChart, BarChart3, Zap, SlidersHorizontal } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { DataUpload } from './components/DataUpload'
 import { TimeSeriesChart } from './components/TimeSeriesChart'
@@ -8,6 +8,23 @@ import { TrainingMonitor } from './components/TrainingMonitor'
 import { ResultsDashboard } from './components/ResultsDashboard'
 
 function App() {
+  // Global state for mode selection
+  const [mode, setMode] = useState('single') // 'single' or 'autotune'
+  
+  // Shared data state between components
+  const [uploadedData, setUploadedData] = useState(null)
+  const [columns, setColumns] = useState([])
+  const [columnRoles, setColumnRoles] = useState({})
+  const [splitConfig, setSplitConfig] = useState(null)
+
+  // Handle data loaded from DataUpload
+  const handleDataLoaded = (dataConfig) => {
+    setUploadedData(dataConfig.data)
+    setColumns(dataConfig.columns)
+    setColumnRoles(dataConfig.columnRoles)
+    setSplitConfig(dataConfig.splitConfig)
+  }
+
   return (
     <div className="dark min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -23,11 +40,47 @@ function App() {
                 <p className="text-xs text-muted-foreground">Deep Learning Workflow Platform</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            
+            {/* Mode Toggle Switch */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 p-1 rounded-lg bg-secondary border border-border">
+                <button
+                  onClick={() => setMode('single')}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all
+                    ${mode === 'single' 
+                      ? 'bg-primary text-primary-foreground shadow-lg' 
+                      : 'text-muted-foreground hover:text-foreground'}
+                  `}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Single
+                </button>
+                <button
+                  onClick={() => setMode('autotune')}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all
+                    ${mode === 'autotune' 
+                      ? 'bg-primary text-primary-foreground shadow-lg' 
+                      : 'text-muted-foreground hover:text-foreground'}
+                  `}
+                >
+                  <Zap className="w-4 h-4" />
+                  Autotune
+                </button>
+              </div>
+              
               <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                v1.0.0
+                v1.1.0
               </div>
             </div>
+          </div>
+          
+          {/* Mode Description */}
+          <div className="mt-2 text-xs text-muted-foreground">
+            {mode === 'single' 
+              ? '📊 Single Mode: Train with fixed hyperparameters'
+              : '🔧 Autotune Mode: Bayesian hyperparameter optimization'}
           </div>
         </div>
       </header>
@@ -59,19 +112,23 @@ function App() {
           </TabsList>
 
           <TabsContent value="data" className="space-y-4">
-            <DataUpload />
+            <DataUpload onDataLoaded={handleDataLoaded} />
           </TabsContent>
 
           <TabsContent value="visualize" className="space-y-4">
-            <TimeSeriesChart />
+            <TimeSeriesChart 
+              data={uploadedData} 
+              columns={columns}
+              columnRoles={columnRoles}
+            />
           </TabsContent>
 
           <TabsContent value="model" className="space-y-4">
-            <ModelConfig />
+            <ModelConfig mode={mode} />
           </TabsContent>
 
           <TabsContent value="training" className="space-y-4">
-            <TrainingMonitor />
+            <TrainingMonitor mode={mode} />
           </TabsContent>
 
           <TabsContent value="results" className="space-y-4">
