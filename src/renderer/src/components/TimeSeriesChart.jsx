@@ -222,13 +222,14 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey={referenceColumn}
-                  stroke="hsl(var(--muted-foreground))"
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  interval="preserveStartEnd"
+                  stroke="hsl(199, 89%, 60%)"
+                  tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
+                  tickCount={5}
+                  interval={Math.ceil(filteredData.length / 4) - 1}
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  stroke="hsl(199, 89%, 60%)"
+                  tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
                 />
                 <Tooltip
                   contentStyle={{

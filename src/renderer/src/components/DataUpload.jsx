@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Upload, FileText, X, Check, Columns, Rows, Settings2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -6,6 +6,9 @@ import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import Papa from 'papaparse'
+
+// Storage key for localStorage
+const STORAGE_KEY = 'dbps_upload_state'
 
 // Column role options
 const COLUMN_ROLES = {
@@ -31,13 +34,29 @@ const SPLIT_PRESETS = [
   { label: '8:1:1', train: 0.8, val: 0.1, test: 0.1 }
 ]
 
+// Load saved state from localStorage
+const loadSavedState = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (e) {
+    console.error('Failed to load saved state:', e)
+  }
+  return null
+}
+
 export function DataUpload({ onDataLoaded }) {
-  const [file, setFile] = useState(null)
+  const savedState = loadSavedState()
+  
+  const [fileName, setFileName] = useState(savedState?.fileName || null)
+  const [fileSize, setFileSize] = useState(savedState?.fileSize || null)
   const [isDragging, setIsDragging] = useState(false)
-  const [parsedData, setParsedData] = useState(null)
-  const [columns, setColumns] = useState([])
-  const [columnRoles, setColumnRoles] = useState({})
-  const [splitConfig, setSplitConfig] = useState({
+  const [parsedData, setParsedData] = useState(savedState?.parsedData || null)
+  const [columns, setColumns] = useState(savedState?.columns || [])
+  const [columnRoles, setColumnRoles] = useState(savedState?.columnRoles || {})
+  const [splitConfig, setSplitConfig] = useState(savedState?.splitConfig || {
     trainStart: 1,
     trainEnd: 60,
     valStart: 61,
@@ -46,6 +65,37 @@ export function DataUpload({ onDataLoaded }) {
     testEnd: 100
   })
   const [error, setError] = useState(null)
+
+  // Save state to localStorage whenever data changes
+  useEffect(() => {
+    if (parsedData && columns.length > 0) {
+      const stateToSave = {
+        fileName,
+        fileSize,
+        parsedData,
+        columns,
+        columnRoles,
+        splitConfig
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
+      } catch (e) {
+        console.error('Failed to save state:', e)
+      }
+    }
+  }, [parsedData, columns, columnRoles, splitConfig, fileName, fileSize])
+
+  // Notify parent on initial load if we have saved data
+  useEffect(() => {
+    if (savedState?.parsedData && onDataLoaded) {
+      onDataLoaded({
+        data: savedState.parsedData,
+        columns: savedState.columns,
+        columnRoles: savedState.columnRoles,
+        splitConfig: savedState.splitConfig
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const parseCSV = useCallback((file) => {
     Papa.parse(file, {
@@ -131,7 +181,8 @@ export function DataUpload({ onDataLoaded }) {
     setIsDragging(false)
     const droppedFile = e.dataTransfer.files[0]
     if (droppedFile && droppedFile.name.endsWith('.csv')) {
-      setFile(droppedFile)
+      setFileName(droppedFile.name)
+      setFileSize(droppedFile.size)
       parseCSV(droppedFile)
     } else {
       setError('Please upload a CSV file')
@@ -141,7 +192,8 @@ export function DataUpload({ onDataLoaded }) {
   const handleFileInput = (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile && selectedFile.name.endsWith('.csv')) {
-      setFile(selectedFile)
+      setFileName(selectedFile.name)
+      setFileSize(selectedFile.size)
       parseCSV(selectedFile)
     } else {
       setError('Please upload a CSV file')
@@ -149,11 +201,14 @@ export function DataUpload({ onDataLoaded }) {
   }
 
   const removeFile = () => {
-    setFile(null)
+    setFileName(null)
+    setFileSize(null)
     setParsedData(null)
     setColumns([])
     setColumnRoles({})
     setError(null)
+    // Clear localStorage
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   const updateColumnRole = (column, role) => {
@@ -233,7 +288,7 @@ export function DataUpload({ onDataLoaded }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!file ? (
+          {!fileName ? (
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -265,9 +320,9 @@ export function DataUpload({ onDataLoaded }) {
                 <div className="flex items-center gap-3">
                   <FileText className="w-8 h-8 text-primary" />
                   <div>
-                    <p className="font-medium">{file.name}</p>
+                    <p className="font-medium">{fileName}</p>
                     <p className="text-sm text-muted-foreground">
-                      {(file.size / 1024).toFixed(2)} KB
+                      {fileSize ? (fileSize / 1024).toFixed(2) : 0} KB
                     </p>
                   </div>
                 </div>
