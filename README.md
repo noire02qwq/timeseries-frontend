@@ -10,47 +10,50 @@ A modern Electron desktop application for deep learning analysis of Disinfection
 
 ### 🔄 Training Modes
 
-- **Single Mode** - 固定超参数训练
-- **Autotune Mode** - 贝叶斯自动调参优化
+- **Single Mode** - Train with fixed hyperparameters
+- **Autotune Mode** - Bayesian hyperparameter optimization
 
 ### 📊 Data Module
 
-- CSV 文件拖放上传
-- 自动解析与预览
-- **列角色配置**（Input/Output/Reference/Unused）
-- **数据集划分**（6:2:2, 7:1:2, 7:2:1 等预设）
-- LocalStorage 状态持久化
+- Drag-and-drop CSV file upload
+- Automatic parsing and preview
+- **Column role configuration** (Input/Output/Reference/Unused)
+- **Dataset splitting** (6:2:2, 7:1:2, 7:2:1 presets for Train/Val/Test)
+- LocalStorage state persistence across tab switches
 
 ### 📈 Visualization Module
 
-- 单变量时间序列可视化
-- X 轴范围选择
-- 统计卡片（Min/Max/Avg）
-- 浅蓝色坐标轴（深色主题优化）
+- Single-column time series visualization
+- X-axis range selection (start/end row)
+- Statistics card (Min/Max/Avg/Current)
+- Light blue axis text (optimized for dark theme)
+- Five-point X-axis ticks (quartile display)
 
 ### 🧠 Model Configuration
 
-- **深度学习**：MLP, RNN, LSTM, GRU
-- **机器学习**：XGBoost, LightGBM, CatBoost
-- Single 模式：直接参数输入
-- Autotune 模式：参数范围 + 分布类型（Log/Uniform）+ 数据类型（Int/Float）
+- **Deep Learning**: MLP, RNN, LSTM, GRU
+- **Machine Learning**: XGBoost, LightGBM, CatBoost
+- Single Mode: Direct parameter input fields
+- Autotune Mode: Parameter range (min/max/step) + Distribution type (Log/Uniform) + Data type (Int/Float)
+- Output directory configuration
+- Training settings (max epochs, random seed)
 
 ### 📉 Training Monitor
 
-- Epoch 进度条
-- 当前 Epoch Loss（Train/Val）
-- 最佳 Epoch Loss（验证 Loss 最低）
-- Loss 曲线图表
-- **收敛指示器**
-- Autotune：Trial 进度条 + Trial 选择器
+- Epoch progress bar with percentage
+- Current epoch losses (Train Loss / Validation Loss)
+- Best epoch losses (lowest validation loss)
+- Real-time loss curves chart
+- **Convergence indicator** (detects when training has stabilized)
+- Autotune Mode: Trial progress bar + Trial selector for viewing past trials
 
 ### 📋 Results Dashboard
 
-- 输出变量选择器
-- 评估指标：R², MSE, MAE, RMSE
-- 预测值 vs 真实值对比图
-- 散点图（理想预测沿对角线）
-- Autotune：最佳 Trial 显示 + 超参数展示
+- Output variable selector (matches model output columns)
+- Evaluation metrics: R², MSE, MAE, RMSE
+- Prediction vs Actual line chart comparison
+- Scatter plot (ideal predictions follow diagonal line)
+- Autotune Mode: Best trial highlight + Hyperparameter display for selected trial
 
 ## 🛠️ Tech Stack
 
@@ -82,85 +85,101 @@ yarn install
 yarn dev
 ```
 
-## 📦 Packaging / 打包
+## 📦 Packaging
 
-### Build for All Platforms
+### Build for Development
 
 ```bash
-# Build production bundle
+# Build production bundle only (no packaging)
 yarn build
 ```
 
-### Linux 打包
+### Linux Packaging
 
 ```bash
 # Build for Linux (AppImage, deb, rpm)
 yarn build:linux
 
-# 输出目录: dist/
-# 生成文件:
-#   - *.AppImage (通用 Linux 格式)
-#   - *.deb (Debian/Ubuntu)
-#   - *.rpm (Fedora/CentOS)
+# Output directory: dist/
+# Generated files:
+#   - *.AppImage (Universal Linux format, run directly)
+#   - *.deb (Debian/Ubuntu installer)
+#   - *.rpm (Fedora/CentOS installer)
 ```
 
-### Windows 打包
+### Windows Packaging
 
 ```bash
 # Build for Windows (NSIS installer, portable)
 yarn build:win
 
-# 输出目录: dist/
-# 生成文件:
-#   - *-Setup.exe (安装程序)
-#   - *.exe (便携版)
+# Output directory: dist/
+# Generated files:
+#   - *-Setup.exe (NSIS installer)
+#   - *.exe (Portable executable)
 ```
 
-### macOS 打包
+### macOS Packaging
 
 ```bash
-# Build for macOS (DMG, app)
+# Build for macOS (DMG, app bundle)
 yarn build:mac
 
-# 输出目录: dist/
-# 生成文件:
-#   - *.dmg (磁盘映像)
-#   - *.app (应用程序)
+# Output directory: dist/
+# Generated files:
+#   - *.dmg (Disk image)
+#   - *.app (Application bundle)
 ```
 
-### 打包配置
+### Build Configuration
 
-打包配置位于 `electron-builder.yml`，可自定义：
+Packaging configuration is located in `electron-builder.yml`. You can customize:
 
-- 应用名称、图标
-- 安装程序选项
-- 代码签名（发布时需要）
+- Application name and icon
+- Installer options
+- Code signing (required for distribution)
+- Target formats
 
-### 跨平台打包注意事项
+### Cross-Platform Build Notes
 
-| 目标平台 | 在此平台打包             |
-| -------- | ------------------------ |
-| Linux    | Linux, macOS             |
-| Windows  | Windows, macOS (需 Wine) |
-| macOS    | macOS only               |
+| Target Platform | Build On                       |
+| --------------- | ------------------------------ |
+| Linux           | Linux, macOS                   |
+| Windows         | Windows, macOS (requires Wine) |
+| macOS           | macOS only                     |
 
 ## 📁 Project Structure
 
 ```
 src/
-└── renderer/src/
+├── main/               # Electron main process
+├── preload/            # Preload scripts
+└── renderer/src/       # React frontend
     ├── components/
     │   ├── ui/              # shadcn base components
-    │   ├── DataUpload.jsx   # CSV upload + column config
-    │   ├── TimeSeriesChart.jsx  # Visualization
-    │   ├── ModelConfig.jsx  # ML/DL model selection
-    │   ├── TrainingMonitor.jsx  # Training progress
-    │   └── ResultsDashboard.jsx # Metrics & predictions
+    │   ├── DataUpload.jsx   # CSV upload + column config + split
+    │   ├── TimeSeriesChart.jsx  # Single-column visualization
+    │   ├── ModelConfig.jsx  # ML/DL model selection + params
+    │   ├── TrainingMonitor.jsx  # Progress + loss curves + convergence
+    │   └── ResultsDashboard.jsx # Metrics + prediction charts
     ├── lib/
-    │   └── utils.js
-    ├── App.jsx              # Main app with mode switch
-    ├── main.jsx
-    └── index.css            # Global styles
+    │   └── utils.js         # Utility functions
+    ├── App.jsx              # Main app with Single/Autotune mode switch
+    ├── main.jsx             # React entry point
+    └── index.css            # Global styles + design tokens
+```
+
+## 🔧 Development
+
+```bash
+# Run development server with hot reload
+yarn dev
+
+# Lint code
+yarn lint
+
+# Format code
+yarn format
 ```
 
 ## 📝 License
