@@ -8,11 +8,49 @@ A modern Electron desktop application for deep learning analysis of Disinfection
 
 ## ✨ Features
 
-- 🎨 **Modern Dark Theme** - Sleek blue gradient color scheme inspired by Gemini and ChatGPT
-- 📊 **Complete Workflow** - Data upload, visualization, model config, training monitor, results dashboard
-- 📈 **Interactive Charts** - Time series visualization powered by Recharts
-- ⚡ **Real-time Training Monitor** - Dynamic loss curves and progress tracking
-- 🧠 **Multi-model Support** - LSTM, GRU, Transformer architecture selection
+### 🔄 Training Modes
+
+- **Single Mode** - 固定超参数训练
+- **Autotune Mode** - 贝叶斯自动调参优化
+
+### 📊 Data Module
+
+- CSV 文件拖放上传
+- 自动解析与预览
+- **列角色配置**（Input/Output/Reference/Unused）
+- **数据集划分**（6:2:2, 7:1:2, 7:2:1 等预设）
+- LocalStorage 状态持久化
+
+### 📈 Visualization Module
+
+- 单变量时间序列可视化
+- X 轴范围选择
+- 统计卡片（Min/Max/Avg）
+- 浅蓝色坐标轴（深色主题优化）
+
+### 🧠 Model Configuration
+
+- **深度学习**：MLP, RNN, LSTM, GRU
+- **机器学习**：XGBoost, LightGBM, CatBoost
+- Single 模式：直接参数输入
+- Autotune 模式：参数范围 + 分布类型（Log/Uniform）+ 数据类型（Int/Float）
+
+### 📉 Training Monitor
+
+- Epoch 进度条
+- 当前 Epoch Loss（Train/Val）
+- 最佳 Epoch Loss（验证 Loss 最低）
+- Loss 曲线图表
+- **收敛指示器**
+- Autotune：Trial 进度条 + Trial 选择器
+
+### 📋 Results Dashboard
+
+- 输出变量选择器
+- 评估指标：R², MSE, MAE, RMSE
+- 预测值 vs 真实值对比图
+- 散点图（理想预测沿对角线）
+- Autotune：最佳 Trial 显示 + 超参数展示
 
 ## 🛠️ Tech Stack
 
@@ -21,6 +59,7 @@ A modern Electron desktop application for deep learning analysis of Disinfection
 - **Styling**: Tailwind CSS 4
 - **Charts**: Recharts
 - **Icons**: Lucide React
+- **CSV Parsing**: PapaParse
 
 ## 🚀 Quick Start
 
@@ -43,17 +82,67 @@ yarn install
 yarn dev
 ```
 
-### Build
+## 📦 Packaging / 打包
+
+### Build for All Platforms
 
 ```bash
-# Build the application
+# Build production bundle
 yarn build
-
-# Build for specific platforms
-yarn build:win    # Windows
-yarn build:mac    # macOS
-yarn build:linux  # Linux
 ```
+
+### Linux 打包
+
+```bash
+# Build for Linux (AppImage, deb, rpm)
+yarn build:linux
+
+# 输出目录: dist/
+# 生成文件:
+#   - *.AppImage (通用 Linux 格式)
+#   - *.deb (Debian/Ubuntu)
+#   - *.rpm (Fedora/CentOS)
+```
+
+### Windows 打包
+
+```bash
+# Build for Windows (NSIS installer, portable)
+yarn build:win
+
+# 输出目录: dist/
+# 生成文件:
+#   - *-Setup.exe (安装程序)
+#   - *.exe (便携版)
+```
+
+### macOS 打包
+
+```bash
+# Build for macOS (DMG, app)
+yarn build:mac
+
+# 输出目录: dist/
+# 生成文件:
+#   - *.dmg (磁盘映像)
+#   - *.app (应用程序)
+```
+
+### 打包配置
+
+打包配置位于 `electron-builder.yml`，可自定义：
+
+- 应用名称、图标
+- 安装程序选项
+- 代码签名（发布时需要）
+
+### 跨平台打包注意事项
+
+| 目标平台 | 在此平台打包             |
+| -------- | ------------------------ |
+| Linux    | Linux, macOS             |
+| Windows  | Windows, macOS (需 Wine) |
+| macOS    | macOS only               |
 
 ## 📁 Project Structure
 
@@ -61,17 +150,17 @@ yarn build:linux  # Linux
 src/
 └── renderer/src/
     ├── components/
-    │   ├── ui/           # shadcn base components
-    │   ├── DataUpload.jsx
-    │   ├── TimeSeriesChart.jsx
-    │   ├── ModelConfig.jsx
-    │   ├── TrainingMonitor.jsx
-    │   └── ResultsDashboard.jsx
+    │   ├── ui/              # shadcn base components
+    │   ├── DataUpload.jsx   # CSV upload + column config
+    │   ├── TimeSeriesChart.jsx  # Visualization
+    │   ├── ModelConfig.jsx  # ML/DL model selection
+    │   ├── TrainingMonitor.jsx  # Training progress
+    │   └── ResultsDashboard.jsx # Metrics & predictions
     ├── lib/
     │   └── utils.js
-    ├── App.jsx
+    ├── App.jsx              # Main app with mode switch
     ├── main.jsx
-    └── index.css
+    └── index.css            # Global styles
 ```
 
 ## 📝 License
