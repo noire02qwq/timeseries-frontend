@@ -132,7 +132,7 @@ function App() {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-4">
-            <ResultsDashboard />
+            <ResultsDashboard mode={mode} columnRoles={columnRoles} />
           </TabsContent>
         </Tabs>
       </main>

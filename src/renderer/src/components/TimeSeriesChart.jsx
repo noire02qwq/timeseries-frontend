@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   LineChart,
   Line,
@@ -10,10 +10,9 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { TrendingUp, Settings2, Eye, EyeOff } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
 
 // Color palette for multiple lines
 const LINE_COLORS = [
@@ -68,8 +67,8 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
   // State for visualization controls
   const [rangeStart, setRangeStart] = useState(1)
   const [rangeEnd, setRangeEnd] = useState(data.length)
-  const [selectedColumns, setSelectedColumns] = useState(
-    plottableColumns.length > 0 ? [plottableColumns[0]] : []
+  const [selectedColumn, setSelectedColumn] = useState(
+    plottableColumns.length > 0 ? plottableColumns[0] : null
   )
 
   // Filter data based on range
@@ -79,37 +78,20 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
     return data.slice(start, end)
   }, [data, rangeStart, rangeEnd])
 
-  // Toggle column visibility
-  const toggleColumn = (column) => {
-    if (selectedColumns.includes(column)) {
-      if (selectedColumns.length > 1) {
-        setSelectedColumns(selectedColumns.filter(c => c !== column))
-      }
-    } else {
-      setSelectedColumns([...selectedColumns, column])
-    }
-  }
-
-  // Select all / deselect all
-  const selectAll = () => setSelectedColumns([...plottableColumns])
-  const deselectAll = () => setSelectedColumns([plottableColumns[0]])
-
-  // Calculate statistics for selected columns
+  // Calculate statistics for selected column
   const stats = useMemo(() => {
-    const result = {}
-    selectedColumns.forEach(col => {
-      const values = filteredData.map(d => parseFloat(d[col])).filter(v => !isNaN(v))
-      if (values.length > 0) {
-        result[col] = {
-          min: Math.min(...values).toFixed(2),
-          max: Math.max(...values).toFixed(2),
-          avg: (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2),
-          current: values[values.length - 1]?.toFixed(2) || 'N/A'
-        }
+    if (!selectedColumn) return null
+    const values = filteredData.map(d => parseFloat(d[selectedColumn])).filter(v => !isNaN(v))
+    if (values.length > 0) {
+      return {
+        min: Math.min(...values).toFixed(2),
+        max: Math.max(...values).toFixed(2),
+        avg: (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2),
+        current: values[values.length - 1]?.toFixed(2) || 'N/A'
       }
-    })
-    return result
-  }, [filteredData, selectedColumns])
+    }
+    return null
+  }, [filteredData, selectedColumn])
 
   return (
     <div className="space-y-6">
@@ -117,7 +99,7 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
       <Card className="gradient-card border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings2 className="w-6 h-6 text-primary" />
+            <TrendingUp className="w-6 h-6 text-primary" />
             Visualization Controls
           </CardTitle>
           <CardDescription>
@@ -161,33 +143,21 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
 
             {/* Column Selection */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Columns to Display</Label>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={selectAll}>
-                    <Eye className="w-4 h-4 mr-1" />
-                    All
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={deselectAll}>
-                    <EyeOff className="w-4 h-4 mr-1" />
-                    Min
-                  </Button>
-                </div>
-              </div>
+              <Label className="text-sm font-medium">Select Column to Display</Label>
               <div className="flex flex-wrap gap-2">
                 {plottableColumns.map((col, index) => (
                   <button
                     key={col}
-                    onClick={() => toggleColumn(col)}
+                    onClick={() => setSelectedColumn(col)}
                     className={`
                       px-3 py-1.5 text-sm rounded-full border transition-all
-                      ${selectedColumns.includes(col)
+                      ${selectedColumn === col
                         ? 'border-transparent text-white'
                         : 'bg-transparent border-border text-muted-foreground hover:border-primary/50'
                       }
                     `}
                     style={{
-                      backgroundColor: selectedColumns.includes(col) 
+                      backgroundColor: selectedColumn === col 
                         ? LINE_COLORS[index % LINE_COLORS.length] 
                         : 'transparent'
                     }}
@@ -212,7 +182,7 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
             Time Series Visualization
           </CardTitle>
           <CardDescription>
-            Displaying {selectedColumns.length} column(s) • Rows {rangeStart} to {rangeEnd}
+            Displaying {selectedColumn || 'no column'} • Rows {rangeStart} to {rangeEnd}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -240,50 +210,45 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
                   }}
                 />
                 <Legend />
-                {selectedColumns.map((col, index) => (
+                {selectedColumn && (
                   <Line
-                    key={col}
                     type="monotone"
-                    dataKey={col}
-                    stroke={LINE_COLORS[plottableColumns.indexOf(col) % LINE_COLORS.length]}
+                    dataKey={selectedColumn}
+                    stroke={LINE_COLORS[plottableColumns.indexOf(selectedColumn) % LINE_COLORS.length]}
                     strokeWidth={2}
                     dot={false}
-                    name={col}
+                    name={selectedColumn}
                   />
-                ))}
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {/* Statistics Cards */}
-      {selectedColumns.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {selectedColumns.slice(0, 4).map((col, index) => (
-            <Card key={col} className="gradient-card border-border/50">
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: LINE_COLORS[plottableColumns.indexOf(col) % LINE_COLORS.length] }}
-                  />
-                  {col}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" style={{ color: LINE_COLORS[plottableColumns.indexOf(col) % LINE_COLORS.length] }}>
-                  {stats[col]?.current || 'N/A'}
-                </div>
-                <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                  <span>Min: {stats[col]?.min}</span>
-                  <span>Max: {stats[col]?.max}</span>
-                  <span>Avg: {stats[col]?.avg}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* Statistics Card */}
+      {selectedColumn && stats && (
+        <Card className="gradient-card border-border/50">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: LINE_COLORS[plottableColumns.indexOf(selectedColumn) % LINE_COLORS.length] }}
+              />
+              {selectedColumn} Statistics
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" style={{ color: LINE_COLORS[plottableColumns.indexOf(selectedColumn) % LINE_COLORS.length] }}>
+              {stats.current}
+            </div>
+            <div className="flex gap-6 mt-2 text-sm text-muted-foreground">
+              <span>Min: {stats.min}</span>
+              <span>Max: {stats.max}</span>
+              <span>Avg: {stats.avg}</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
