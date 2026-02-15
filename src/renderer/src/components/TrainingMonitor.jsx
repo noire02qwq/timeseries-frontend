@@ -10,30 +10,24 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { 
-  Activity, 
-  CheckCircle2, 
-  XCircle, 
-  Play, 
-  Pause,
-  BarChart3,
-  TrendingDown
+import {
+  Activity,
+  CheckCircle2,
+  TrendingDown,
+  Eye,
+  ChevronDown
 } from 'lucide-react'
 
 // Mock training data for demo
 const generateMockTrainingData = () => {
-  const epochs = 100
   const data = []
-  for (let i = 1; i <= epochs; i++) {
-    const trainLoss = 2.5 * Math.exp(-i / 30) + 0.1 + Math.random() * 0.05
-    const valLoss = 2.5 * Math.exp(-i / 35) + 0.15 + Math.random() * 0.08
+  for (let i = 1; i <= 200; i++) {
     data.push({
       epoch: i,
-      trainLoss: parseFloat(trainLoss.toFixed(4)),
-      valLoss: parseFloat(valLoss.toFixed(4))
+      trainLoss: 0.5 * Math.exp(-i / 50) + 0.08 + Math.random() * 0.02,
+      valLoss: 0.55 * Math.exp(-i / 55) + 0.12 + Math.random() * 0.03
     })
   }
   return data
@@ -47,273 +41,260 @@ const MOCK_TRIALS = [
   { id: 5, bestEpoch: 0, bestValLoss: null, trainLoss: null, completed: false }
 ]
 
-export function TrainingMonitor({ mode = 'single' }) {
-  const [trainingData] = useState(generateMockTrainingData)
-  const [currentEpoch, setCurrentEpoch] = useState(75)
-  const [maxEpochs] = useState(100)
-  const [isTraining] = useState(true)
-  const [selectedTrial, setSelectedTrial] = useState(4)
-  const [currentTrial, setCurrentTrial] = useState(5)
-  const [totalTrials] = useState(10)
-  
-  // Find best epoch (lowest validation loss)
-  const bestEpoch = useMemo(() => {
-    if (trainingData.length === 0) return null
-    const dataUpToNow = trainingData.slice(0, currentEpoch)
-    return dataUpToNow.reduce((best, current) => 
-      current.valLoss < best.valLoss ? current : best
-    , dataUpToNow[0])
-  }, [trainingData, currentEpoch])
-  
-  // Current epoch losses
-  const currentLosses = trainingData[currentEpoch - 1] || { trainLoss: 0, valLoss: 0 }
-  
-  // Check convergence (val loss not improving for 10+ epochs)
-  const isConverged = useMemo(() => {
-    if (currentEpoch < 20) return false
-    const recentData = trainingData.slice(currentEpoch - 10, currentEpoch)
-    const minRecent = Math.min(...recentData.map(d => d.valLoss))
-    const oldData = trainingData.slice(0, currentEpoch - 10)
-    const minOld = Math.min(...oldData.map(d => d.valLoss))
-    return minRecent >= minOld * 0.99
-  }, [trainingData, currentEpoch])
-  
+export function TrainingMonitor({ mode = 'manual' }) {
+  const trainingData = useMemo(() => generateMockTrainingData(), [])
+
+  // Current progress state
+  const currentEpoch = 156
+  const maxEpochs = 500
   const epochProgress = (currentEpoch / maxEpochs) * 100
-  const trialProgress = (currentTrial / totalTrials) * 100
-  
-  const viewData = trainingData.slice(0, currentEpoch)
-  const completedTrials = MOCK_TRIALS.filter(t => t.completed)
+
+  // Trial state for autotune
+  const currentTrial = 5
+  const maxTrials = 10
+  const trialProgress = (currentTrial / maxTrials) * 100
+
+  // Show button state - only show charts on demand
+  const [showCharts, setShowCharts] = useState(false)
+  const [selectedTrial, setSelectedTrial] = useState(currentTrial)
+
+  // Current training losses
+  const currentTrainLoss = trainingData[currentEpoch - 1]?.trainLoss?.toFixed(4) || 'N/A'
+  const currentValLoss = trainingData[currentEpoch - 1]?.valLoss?.toFixed(4) || 'N/A'
+
+  // Best losses
+  const bestValLossEntry = useMemo(() => {
+    const slice = trainingData.slice(0, currentEpoch)
+    return slice.reduce(
+      (best, entry) => (entry.valLoss < best.valLoss ? entry : best),
+      slice[0]
+    )
+  }, [trainingData, currentEpoch])
+
+  // Convergence detection
+  const isConverging = useMemo(() => {
+    if (currentEpoch < 20) return false
+    const recent = trainingData.slice(currentEpoch - 20, currentEpoch)
+    const avgRecent = recent.reduce((sum, d) => sum + d.valLoss, 0) / recent.length
+    const earlier = trainingData.slice(currentEpoch - 40, currentEpoch - 20)
+    if (earlier.length === 0) return false
+    const avgEarlier = earlier.reduce((sum, d) => sum + d.valLoss, 0) / earlier.length
+    return Math.abs(avgRecent - avgEarlier) < 0.005
+  }, [trainingData, currentEpoch])
+
+  // Chart data up to current epoch
+  const chartData = useMemo(() => {
+    if (!showCharts) return []
+    return trainingData.slice(0, currentEpoch)
+  }, [trainingData, currentEpoch, showCharts])
 
   return (
     <div className="space-y-6">
-      {/* Autotune Mode: Trial Progress */}
-      {mode === 'autotune' && (
-        <Card className="gradient-card border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-primary" />
-              Bayesian Optimization Progress
-            </CardTitle>
-            <CardDescription>
-              Trial {currentTrial} of {totalTrials}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Trial Progress Bar */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Trial Progress</span>
-                <span className="text-primary">{currentTrial}/{totalTrials}</span>
-              </div>
-              <div className="h-3 bg-secondary rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-300"
-                  style={{ width: `${trialProgress}%` }}
-                />
-              </div>
-            </div>
-            
-            {/* Trial Selector */}
-            <div className="space-y-2">
-              <Label>View Past Trial</Label>
-              <div className="flex flex-wrap gap-2">
-                {completedTrials.map(trial => (
-                  <button
-                    key={trial.id}
-                    onClick={() => setSelectedTrial(trial.id)}
-                    className={`
-                      px-3 py-1.5 text-sm rounded-lg border transition-all
-                      ${selectedTrial === trial.id
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border hover:border-primary/50'
-                      }
-                      ${trial.isBest ? 'ring-2 ring-yellow-500/50' : ''}
-                    `}
-                  >
-                    Trial {trial.id}
-                    {trial.isBest && <span className="ml-1 text-yellow-500">★</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Epoch Progress */}
+      {/* Progress Bars */}
       <Card className="gradient-card border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="w-6 h-6 text-primary" />
             Training Progress
-            {isTraining ? (
-              <Badge variant="default" className="ml-2">
-                <Play className="w-3 h-3 mr-1" />
-                Training
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="ml-2">
-                <Pause className="w-3 h-3 mr-1" />
-                Paused
-              </Badge>
-            )}
           </CardTitle>
           <CardDescription>
-            Epoch {currentEpoch} of {maxEpochs}
+            {mode === 'manual' ? 'Manual training progress' : 'Autotune optimization progress'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Epoch Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Epoch Progress</span>
-              <span className="text-primary">{epochProgress.toFixed(1)}%</span>
+          {/* Trial Progress (Autotune only) */}
+          {mode === 'autotune' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Trial Progress</span>
+                <span className="font-mono font-medium">
+                  {currentTrial} / {maxTrials} trials
+                </span>
+              </div>
+              <div className="w-full bg-secondary rounded-full h-3">
+                <div
+                  className="bg-yellow-500 h-3 rounded-full transition-all"
+                  style={{ width: `${trialProgress}%` }}
+                />
+              </div>
             </div>
-            <div className="h-3 bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-primary to-blue-400 transition-all duration-300"
+          )}
+
+          {/* Epoch Progress */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Epoch Progress</span>
+              <span className="font-mono font-medium">
+                {currentEpoch} / {maxEpochs} ({epochProgress.toFixed(1)}%)
+              </span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-3">
+              <div
+                className="bg-primary h-3 rounded-full transition-all"
                 style={{ width: `${epochProgress}%` }}
               />
             </div>
           </div>
-          
-          {/* Demo Controls */}
-          <div className="space-y-2">
-            <Label>Simulate Epoch (Demo)</Label>
-            <Input
-              type="range"
-              min={1}
-              max={maxEpochs}
-              value={currentEpoch}
-              onChange={(e) => setCurrentEpoch(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
-          
-          {/* Loss Values Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Current Epoch */}
+
+          {/* Current & Best Losses */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-              <div className="text-sm text-muted-foreground mb-2">Current Epoch {currentEpoch}</div>
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-xs text-muted-foreground mb-1">Current Epoch {currentEpoch}</p>
+              <div className="flex justify-between">
                 <div>
-                  <div className="text-xs text-muted-foreground">Train Loss</div>
-                  <div className="text-xl font-bold text-blue-500">{currentLosses.trainLoss}</div>
+                  <p className="text-xs text-muted-foreground">Train Loss</p>
+                  <p className="text-lg font-mono font-bold text-blue-400">{currentTrainLoss}</p>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Val Loss</div>
-                  <div className="text-xl font-bold text-orange-500">{currentLosses.valLoss}</div>
+                  <p className="text-xs text-muted-foreground">Val Loss</p>
+                  <p className="text-lg font-mono font-bold text-yellow-400">{currentValLoss}</p>
                 </div>
               </div>
             </div>
-            
-            {/* Best Epoch */}
-            {bestEpoch && (
-              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-                <div className="text-sm text-green-500 mb-2 flex items-center gap-1">
-                  <TrendingDown className="w-4 h-4" />
-                  Best Epoch {bestEpoch.epoch}
+            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+              <p className="text-xs text-muted-foreground mb-1">
+                Best Epoch {bestValLossEntry?.epoch}
+              </p>
+              <div className="flex justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Train Loss</p>
+                  <p className="text-lg font-mono font-bold text-blue-400">
+                    {bestValLossEntry?.trainLoss?.toFixed(4)}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Train Loss</div>
-                    <div className="text-xl font-bold text-blue-500">{bestEpoch.trainLoss}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Val Loss</div>
-                    <div className="text-xl font-bold text-green-500">{bestEpoch.valLoss}</div>
-                  </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Val Loss</p>
+                  <p className="text-lg font-mono font-bold text-green-400">
+                    {bestValLossEntry?.valLoss?.toFixed(4)}
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-          
+
           {/* Convergence Indicator */}
-          <div className={`
-            p-4 rounded-lg border flex items-center gap-3
-            ${isConverged 
-              ? 'bg-yellow-500/10 border-yellow-500/30' 
-              : 'bg-secondary/50 border-border'
-            }
-          `}>
-            {isConverged ? (
+          <div
+            className={`flex items-center gap-2 p-3 rounded-lg border ${
+              isConverging
+                ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                : 'bg-green-500/10 border-green-500/30 text-green-400'
+            }`}
+          >
+            {isConverging ? (
               <>
-                <CheckCircle2 className="w-6 h-6 text-yellow-500" />
-                <div>
-                  <div className="font-medium text-yellow-500">Training Converged</div>
-                  <div className="text-sm text-muted-foreground">
-                    Validation loss has stabilized. Consider early stopping.
-                  </div>
-                </div>
+                <TrendingDown className="w-4 h-4" />
+                <span className="text-sm">Training appears to be converging</span>
               </>
             ) : (
               <>
-                <XCircle className="w-6 h-6 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Training in Progress</div>
-                  <div className="text-sm text-muted-foreground">
-                    Model is still learning. Validation loss continues to improve.
-                  </div>
-                </div>
+                <CheckCircle2 className="w-4 h-4" />
+                <span className="text-sm">Training is progressing normally</span>
               </>
             )}
+          </div>
+
+          {/* Show Button */}
+          <div className="flex items-center justify-between">
+            {mode === 'autotune' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">View Trial:</label>
+                <select
+                  value={selectedTrial}
+                  onChange={(e) => setSelectedTrial(Number(e.target.value))}
+                  className="bg-secondary border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {MOCK_TRIALS.map((trial) => (
+                    <option key={trial.id} value={trial.id}>
+                      Trial #{trial.id}
+                      {trial.isBest ? ' ★ Best' : ''}
+                      {trial.bestValLoss ? ` — Val Loss: ${trial.bestValLoss.toFixed(4)}` : ' — In Progress'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <Button onClick={() => setShowCharts(true)} className="ml-auto">
+              <Eye className="w-4 h-4 mr-2" />
+              Show Loss Curves
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Loss Curves Chart */}
-      <Card className="gradient-card border-border/50">
-        <CardHeader>
-          <CardTitle>Loss Curves</CardTitle>
-          <CardDescription>
-            Training and validation loss over epochs
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={viewData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="epoch" 
-                  stroke="hsl(199, 89%, 60%)"
-                  tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
-                  tickCount={5}
-                />
-                <YAxis 
-                  stroke="hsl(199, 89%, 60%)"
-                  tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    color: 'hsl(var(--foreground))'
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="trainLoss"
-                  stroke="hsl(217, 91%, 60%)"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Train Loss"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="valLoss"
-                  stroke="hsl(24, 100%, 50%)"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Val Loss"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Loss Curves Chart - only shown after clicking Show */}
+      {showCharts && (
+        <Card className="gradient-card border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingDown className="w-6 h-6 text-primary" />
+              Loss Curves
+              {mode === 'autotune' && (
+                <Badge variant="outline" className="ml-2">
+                  Trial #{selectedTrial}
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Snapshot at epoch {currentEpoch} — Click Show again to refresh
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="epoch"
+                    stroke="hsl(199, 89%, 60%)"
+                    tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
+                    label={{
+                      value: 'Epoch',
+                      position: 'insideBottomRight',
+                      offset: -5,
+                      fill: 'hsl(199, 89%, 60%)'
+                    }}
+                  />
+                  <YAxis
+                    stroke="hsl(199, 89%, 60%)"
+                    tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
+                    label={{
+                      value: 'Loss',
+                      angle: -90,
+                      position: 'insideLeft',
+                      fill: 'hsl(199, 89%, 60%)'
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="trainLoss"
+                    stroke="hsl(217, 91%, 60%)"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Train Loss"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="valLoss"
+                    stroke="hsl(45, 93%, 47%)"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Validation Loss"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

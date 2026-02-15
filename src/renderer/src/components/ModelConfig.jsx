@@ -14,6 +14,7 @@ const MODEL_CONFIGS = {
     name: 'MLP',
     fullName: 'Multi-Layer Perceptron',
     supportsHistory: false,
+    isSequential: false,
     params: {
       mid_layer_count: { label: 'Hidden Layers', default: 3, type: 'int', desc: 'Number of hidden layers' },
       mid_layer_size: { label: 'Layer Size', default: 256, type: 'int', desc: 'Neurons per hidden layer' },
@@ -36,6 +37,7 @@ const MODEL_CONFIGS = {
     name: 'RNN',
     fullName: 'Recurrent Neural Network',
     supportsHistory: true,
+    isSequential: true,
     params: {
       history_length: { label: 'History Length', default: 64, type: 'int', desc: 'Sequence length' },
       units: { label: 'Units', default: 192, type: 'int', desc: 'Hidden units per layer' },
@@ -60,6 +62,7 @@ const MODEL_CONFIGS = {
     name: 'LSTM',
     fullName: 'Long Short-Term Memory',
     supportsHistory: true,
+    isSequential: true,
     params: {
       history_length: { label: 'History Length', default: 108, type: 'int', desc: 'Sequence length' },
       units: { label: 'Units', default: 192, type: 'int', desc: 'Hidden units per layer' },
@@ -84,6 +87,7 @@ const MODEL_CONFIGS = {
     name: 'GRU',
     fullName: 'Gated Recurrent Unit',
     supportsHistory: true,
+    isSequential: true,
     params: {
       history_length: { label: 'History Length', default: 64, type: 'int', desc: 'Sequence length' },
       units: { label: 'Units', default: 192, type: 'int', desc: 'Hidden units per layer' },
@@ -109,6 +113,7 @@ const MODEL_CONFIGS = {
     name: 'XGBoost',
     fullName: 'Extreme Gradient Boosting',
     supportsHistory: false,
+    isSequential: false,
     params: {
       max_depth: { label: 'Max Depth', default: 8, type: 'int', desc: 'Maximum tree depth' },
       learning_rate: { label: 'Learning Rate', default: 0.05, type: 'float', desc: 'Boosting learning rate' },
@@ -133,6 +138,7 @@ const MODEL_CONFIGS = {
     name: 'LightGBM',
     fullName: 'Light Gradient Boosting Machine',
     supportsHistory: false,
+    isSequential: false,
     params: {
       num_leaves: { label: 'Num Leaves', default: 255, type: 'int', desc: 'Max number of leaves' },
       max_depth: { label: 'Max Depth', default: -1, type: 'int', desc: 'Max tree depth (-1 for no limit)' },
@@ -158,6 +164,7 @@ const MODEL_CONFIGS = {
     name: 'CatBoost',
     fullName: 'Categorical Boosting',
     supportsHistory: false,
+    isSequential: false,
     params: {
       depth: { label: 'Depth', default: 8, type: 'int', desc: 'Tree depth' },
       learning_rate: { label: 'Learning Rate', default: 0.05, type: 'float', desc: 'Boosting learning rate' },
@@ -177,36 +184,43 @@ const MODEL_CONFIGS = {
   }
 }
 
-const DL_MODELS = ['MLP', 'RNN', 'LSTM', 'GRU']
+const ALL_DL_MODELS = ['MLP', 'RNN', 'LSTM', 'GRU']
 const ML_MODELS = ['XGBoost', 'LightGBM', 'CatBoost']
 
-export function ModelConfig({ mode = 'single' }) {
-  const [category, setCategory] = useState('dl') // 'dl' or 'ml'
+export function ModelConfig({ mode = 'manual', dataMode = 'sequential' }) {
+  const [category, setCategory] = useState('dl')
   const [selectedModel, setSelectedModel] = useState('LSTM')
   const [outputDir, setOutputDir] = useState('./output')
   const [maxEpochs, setMaxEpochs] = useState(500)
   const [seed, setSeed] = useState(42)
-  
+
   // Single mode parameters
   const [singleParams, setSingleParams] = useState({})
-  
+
   // Autotune mode parameters (ranges)
   const [bayesParams, setBayesParams] = useState({})
 
   const modelConfig = useMemo(() => MODEL_CONFIGS[selectedModel], [selectedModel])
+
+  // Filter DL models based on dataMode
+  const DL_MODELS = useMemo(() => {
+    if (dataMode === 'tabular') {
+      return ALL_DL_MODELS.filter((m) => !MODEL_CONFIGS[m].isSequential)
+    }
+    return ALL_DL_MODELS
+  }, [dataMode])
+
   const availableModels = category === 'dl' ? DL_MODELS : ML_MODELS
 
   // Initialize parameters when model changes
   useEffect(() => {
     if (modelConfig) {
-      // Initialize single mode params with defaults
       const initSingle = {}
       Object.entries(modelConfig.params).forEach(([key, config]) => {
         initSingle[key] = config.default
       })
       setSingleParams(initSingle)
-      
-      // Initialize bayes params with default ranges
+
       const initBayes = {}
       Object.entries(modelConfig.bayesParams).forEach(([key, config]) => {
         initBayes[key] = { ...config }
@@ -215,21 +229,23 @@ export function ModelConfig({ mode = 'single' }) {
     }
   }, [modelConfig])
 
-  // Update selected model when category changes
+  // Update selected model when category or dataMode changes
   useEffect(() => {
-    if (category === 'dl' && !DL_MODELS.includes(selectedModel)) {
-      setSelectedModel('LSTM')
+    if (category === 'dl') {
+      if (!DL_MODELS.includes(selectedModel)) {
+        setSelectedModel(DL_MODELS[0] || 'MLP')
+      }
     } else if (category === 'ml' && !ML_MODELS.includes(selectedModel)) {
       setSelectedModel('XGBoost')
     }
-  }, [category, selectedModel])
+  }, [category, selectedModel, DL_MODELS])
 
   const handleSingleParamChange = (key, value) => {
-    setSingleParams(prev => ({ ...prev, [key]: value }))
+    setSingleParams((prev) => ({ ...prev, [key]: value }))
   }
 
   const handleBayesParamChange = (key, field, value) => {
-    setBayesParams(prev => ({
+    setBayesParams((prev) => ({
       ...prev,
       [key]: { ...prev[key], [field]: value }
     }))
@@ -246,6 +262,9 @@ export function ModelConfig({ mode = 'single' }) {
           </CardTitle>
           <CardDescription>
             Choose model category and select a specific model
+            {dataMode === 'tabular' && (
+              <span className="ml-2 text-amber-500">• Sequential models hidden in Tabular mode</span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -276,7 +295,7 @@ export function ModelConfig({ mode = 'single' }) {
           <div className="space-y-2">
             <Label>Select Model</Label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {availableModels.map(model => (
+              {availableModels.map((model) => (
                 <button
                   key={model}
                   onClick={() => setSelectedModel(model)}
@@ -284,15 +303,14 @@ export function ModelConfig({ mode = 'single' }) {
                     p-4 rounded-lg border-2 transition-all text-left
                     ${selectedModel === model
                       ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50 bg-secondary/30'
-                    }
+                      : 'border-border hover:border-primary/50 bg-secondary/30'}
                   `}
                 >
                   <div className="font-semibold">{model}</div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {MODEL_CONFIGS[model].fullName}
                   </div>
-                  {MODEL_CONFIGS[model].supportsHistory && (
+                  {MODEL_CONFIGS[model].isSequential && (
                     <Badge variant="outline" className="mt-2 text-xs">
                       Sequential
                     </Badge>
@@ -309,93 +327,102 @@ export function ModelConfig({ mode = 'single' }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sliders className="w-6 h-6 text-primary" />
-            {mode === 'single' ? 'Model Parameters' : 'Bayesian Tuning Ranges'}
+            {mode === 'manual' ? 'Model Parameters' : 'Bayesian Tuning Ranges'}
           </CardTitle>
           <CardDescription>
-            {mode === 'single' 
+            {mode === 'manual'
               ? `Configure hyperparameters for ${selectedModel}`
-              : `Set parameter search ranges for ${selectedModel} optimization`
-            }
+              : `Set parameter search ranges for ${selectedModel} optimization`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {mode === 'single' ? (
-            // Single Mode: Direct parameter inputs
+          {mode === 'manual' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {modelConfig && Object.entries(modelConfig.params).map(([key, config]) => (
-                <div key={key} className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    {config.label}
-                    <Badge variant="secondary" className="text-[10px]">
-                      {config.type}
-                    </Badge>
-                  </Label>
-                  <Input
-                    type="number"
-                    step={config.type === 'float' ? 0.0001 : 1}
-                    value={singleParams[key] ?? config.default}
-                    onChange={(e) => handleSingleParamChange(key, parseFloat(e.target.value))}
-                  />
-                  <p className="text-xs text-muted-foreground">{config.desc}</p>
-                </div>
-              ))}
+              {modelConfig &&
+                Object.entries(modelConfig.params).map(([key, config]) => (
+                  <div key={key} className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      {config.label}
+                      <Badge variant="secondary" className="text-[10px]">
+                        {config.type}
+                      </Badge>
+                    </Label>
+                    <Input
+                      type="number"
+                      step={config.type === 'float' ? 0.0001 : 1}
+                      value={singleParams[key] ?? config.default}
+                      onChange={(e) => handleSingleParamChange(key, parseFloat(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground">{config.desc}</p>
+                  </div>
+                ))}
             </div>
           ) : (
-            // Autotune Mode: Parameter ranges with distribution settings
             <div className="space-y-4">
-              {modelConfig && Object.entries(modelConfig.bayesParams).map(([key, config]) => (
-                <div key={key} className="p-4 rounded-lg bg-secondary/30 border border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <Label className="font-semibold">{modelConfig.params[key]?.label || key}</Label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleBayesParamChange(key, 'log', !bayesParams[key]?.log)}
-                        className={`px-2 py-1 text-xs rounded border transition-all ${
-                          bayesParams[key]?.log 
-                            ? 'bg-primary text-primary-foreground border-primary' 
-                            : 'border-border text-muted-foreground hover:border-primary/50'
-                        }`}
-                      >
-                        {bayesParams[key]?.log ? 'Log' : 'Uniform'}
-                      </button>
-                      <Badge variant="outline" className="text-xs">
-                        {bayesParams[key]?.type || config.type}
-                      </Badge>
+              {modelConfig &&
+                Object.entries(modelConfig.bayesParams).map(([key, config]) => (
+                  <div key={key} className="p-4 rounded-lg bg-secondary/30 border border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="font-semibold">
+                        {modelConfig.params[key]?.label || key}
+                      </Label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            handleBayesParamChange(key, 'log', !bayesParams[key]?.log)
+                          }
+                          className={`px-2 py-1 text-xs rounded border transition-all ${
+                            bayesParams[key]?.log
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'border-border text-muted-foreground hover:border-primary/50'
+                          }`}
+                        >
+                          {bayesParams[key]?.log ? 'Log' : 'Uniform'}
+                        </button>
+                        <Badge variant="outline" className="text-xs">
+                          {bayesParams[key]?.type || config.type}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Min</Label>
-                      <Input
-                        type="number"
-                        step={config.type === 'float' ? 0.0001 : 1}
-                        value={bayesParams[key]?.min ?? config.min}
-                        onChange={(e) => handleBayesParamChange(key, 'min', parseFloat(e.target.value))}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Max</Label>
-                      <Input
-                        type="number"
-                        step={config.type === 'float' ? 0.0001 : 1}
-                        value={bayesParams[key]?.max ?? config.max}
-                        onChange={(e) => handleBayesParamChange(key, 'max', parseFloat(e.target.value))}
-                      />
-                    </div>
-                    {config.step !== undefined && (
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Step</Label>
+                        <Label className="text-xs text-muted-foreground">Min</Label>
                         <Input
                           type="number"
                           step={config.type === 'float' ? 0.0001 : 1}
-                          value={bayesParams[key]?.step ?? config.step}
-                          onChange={(e) => handleBayesParamChange(key, 'step', parseFloat(e.target.value))}
+                          value={bayesParams[key]?.min ?? config.min}
+                          onChange={(e) =>
+                            handleBayesParamChange(key, 'min', parseFloat(e.target.value))
+                          }
                         />
                       </div>
-                    )}
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Max</Label>
+                        <Input
+                          type="number"
+                          step={config.type === 'float' ? 0.0001 : 1}
+                          value={bayesParams[key]?.max ?? config.max}
+                          onChange={(e) =>
+                            handleBayesParamChange(key, 'max', parseFloat(e.target.value))
+                          }
+                        />
+                      </div>
+                      {config.step !== undefined && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Step</Label>
+                          <Input
+                            type="number"
+                            step={config.type === 'float' ? 0.0001 : 1}
+                            value={bayesParams[key]?.step ?? config.step}
+                            onChange={(e) =>
+                              handleBayesParamChange(key, 'step', parseFloat(e.target.value))
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
         </CardContent>
@@ -408,9 +435,7 @@ export function ModelConfig({ mode = 'single' }) {
             <Cpu className="w-6 h-6 text-primary" />
             Training Settings
           </CardTitle>
-          <CardDescription>
-            General training configuration
-          </CardDescription>
+          <CardDescription>General training configuration</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -452,19 +477,16 @@ export function ModelConfig({ mode = 'single' }) {
           <Zap className={`w-5 h-5 ${mode === 'autotune' ? 'text-yellow-500' : 'text-primary'}`} />
           <div>
             <p className="font-medium">
-              {mode === 'single' ? 'Single Training Mode' : 'Bayesian Autotune Mode'}
+              {mode === 'manual' ? 'Manual Training Mode' : 'Bayesian Autotune Mode'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {mode === 'single' 
-                ? 'Train with fixed hyperparameters' 
-                : 'Automatic hyperparameter optimization with Bayesian search'
-              }
+              {mode === 'manual'
+                ? 'Train with fixed hyperparameters'
+                : 'Automatic hyperparameter optimization with Bayesian search'}
             </p>
           </div>
         </div>
-        <Badge variant={mode === 'autotune' ? 'default' : 'secondary'}>
-          {selectedModel}
-        </Badge>
+        <Badge variant={mode === 'autotune' ? 'default' : 'secondary'}>{selectedModel}</Badge>
       </div>
     </div>
   )

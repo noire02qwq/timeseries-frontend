@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Upload, FileText, X, Check, Columns, Rows, Settings2 } from 'lucide-react'
+import { Upload, FileText, X, Check, Columns, Rows, Settings2, Shuffle, Info } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 
 // Storage key for localStorage
 const STORAGE_KEY = 'dbps_upload_state'
@@ -47,12 +48,13 @@ const loadSavedState = () => {
   return null
 }
 
-export function DataUpload({ onDataLoaded }) {
+export function DataUpload({ onDataLoaded, dataMode = 'sequential' }) {
   const savedState = loadSavedState()
-  
+
   const [fileName, setFileName] = useState(savedState?.fileName || null)
   const [fileSize, setFileSize] = useState(savedState?.fileSize || null)
   const [isDragging, setIsDragging] = useState(false)
+  const [pendingFile, setPendingFile] = useState(null) // file waiting for Confirm
   const [parsedData, setParsedData] = useState(savedState?.parsedData || null)
   const [columns, setColumns] = useState(savedState?.columns || [])
   const [columnRoles, setColumnRoles] = useState(savedState?.columnRoles || {})
@@ -65,6 +67,7 @@ export function DataUpload({ onDataLoaded }) {
     testEnd: 100
   })
   const [error, setError] = useState(null)
+  const [confirmed, setConfirmed] = useState(!!savedState?.parsedData)
 
   // Save state to localStorage whenever data changes
   useEffect(() => {
@@ -97,75 +100,100 @@ export function DataUpload({ onDataLoaded }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const parseCSV = useCallback((file) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.errors.length > 0) {
-          setError(`Parse error: ${results.errors[0].message}`)
-          return
-        }
-        
-        const cols = results.meta.fields || []
-        const data = results.data
-        
-        setParsedData(data)
-        setColumns(cols)
-        
-        // Initialize column roles - first: reference, second: input, third: output, rest: unused
-        const initialRoles = {}
-        cols.forEach((col, index) => {
-          if (index === 0) {
-            initialRoles[col] = COLUMN_ROLES.REFERENCE
-          } else if (index === 1) {
-            initialRoles[col] = COLUMN_ROLES.INPUT
-          } else if (index === 2) {
-            initialRoles[col] = COLUMN_ROLES.OUTPUT
-          } else {
-            initialRoles[col] = COLUMN_ROLES.UNUSED
+  // Parse file (CSV or XLSX)
+  const parseFile = useCallback((file) => {
+    const ext = file.name.split('.').pop().toLowerCase()
+
+    if (ext === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            setError(`Parse error: ${results.errors[0].message}`)
+            return
           }
-        })
-        setColumnRoles(initialRoles)
-        
-        // Initialize split config based on row count
-        const rowCount = data.length
-        const trainEnd = Math.floor(rowCount * 0.6)
-        const valEnd = Math.floor(rowCount * 0.8)
-        
-        setSplitConfig({
-          trainStart: 1,
-          trainEnd: trainEnd,
-          valStart: trainEnd + 1,
-          valEnd: valEnd,
-          testStart: valEnd + 1,
-          testEnd: rowCount
-        })
-        
-        setError(null)
-        
-        // Callback to parent
-        if (onDataLoaded) {
-          onDataLoaded({
-            data,
-            columns: cols,
-            columnRoles: initialRoles,
-            splitConfig: {
-              trainStart: 1,
-              trainEnd: trainEnd,
-              valStart: trainEnd + 1,
-              valEnd: valEnd,
-              testStart: valEnd + 1,
-              testEnd: rowCount
-            }
-          })
+          processData(results.meta.fields || [], results.data)
+        },
+        error: (error) => {
+          setError(`Failed to parse file: ${error.message}`)
         }
-      },
-      error: (error) => {
-        setError(`Failed to parse file: ${error.message}`)
+      })
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const workbook = XLSX.read(e.target.result, { type: 'array' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet)
+          if (jsonData.length === 0) {
+            setError('The spreadsheet is empty')
+            return
+          }
+          const cols = Object.keys(jsonData[0])
+          processData(cols, jsonData)
+        } catch (err) {
+          setError(`Failed to parse XLSX file: ${err.message}`)
+        }
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      setError('Unsupported file format. Please upload CSV or XLSX files.')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const processData = (cols, data) => {
+    setParsedData(data)
+    setColumns(cols)
+
+    // Initialize column roles
+    const initialRoles = {}
+    cols.forEach((col, index) => {
+      if (index === 0) {
+        initialRoles[col] = COLUMN_ROLES.REFERENCE
+      } else if (index === 1) {
+        initialRoles[col] = COLUMN_ROLES.INPUT
+      } else if (index === 2) {
+        initialRoles[col] = COLUMN_ROLES.OUTPUT
+      } else {
+        initialRoles[col] = COLUMN_ROLES.UNUSED
       }
     })
-  }, [onDataLoaded])
+    setColumnRoles(initialRoles)
+
+    // Initialize split config
+    const rowCount = data.length
+    const trainEnd = Math.floor(rowCount * 0.6)
+    const valEnd = Math.floor(rowCount * 0.8)
+
+    const newSplitConfig = {
+      trainStart: 1,
+      trainEnd: trainEnd,
+      valStart: trainEnd + 1,
+      valEnd: valEnd,
+      testStart: valEnd + 1,
+      testEnd: rowCount
+    }
+    setSplitConfig(newSplitConfig)
+    setError(null)
+    setConfirmed(true)
+
+    // Callback to parent
+    if (onDataLoaded) {
+      onDataLoaded({
+        data,
+        columns: cols,
+        columnRoles: initialRoles,
+        splitConfig: newSplitConfig
+      })
+    }
+  }
+
+  const isValidFile = (file) => {
+    const ext = file.name.split('.').pop().toLowerCase()
+    return ['csv', 'xlsx', 'xls'].includes(ext)
+  }
 
   const handleDragOver = (e) => {
     e.preventDefault()
@@ -180,42 +208,52 @@ export function DataUpload({ onDataLoaded }) {
     e.preventDefault()
     setIsDragging(false)
     const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile && droppedFile.name.endsWith('.csv')) {
+    if (droppedFile && isValidFile(droppedFile)) {
       setFileName(droppedFile.name)
       setFileSize(droppedFile.size)
-      parseCSV(droppedFile)
+      setPendingFile(droppedFile)
+      setConfirmed(false)
+      setParsedData(null)
     } else {
-      setError('Please upload a CSV file')
+      setError('Please upload a CSV or XLSX file')
     }
   }
 
   const handleFileInput = (e) => {
     const selectedFile = e.target.files[0]
-    if (selectedFile && selectedFile.name.endsWith('.csv')) {
+    if (selectedFile && isValidFile(selectedFile)) {
       setFileName(selectedFile.name)
       setFileSize(selectedFile.size)
-      parseCSV(selectedFile)
+      setPendingFile(selectedFile)
+      setConfirmed(false)
+      setParsedData(null)
     } else {
-      setError('Please upload a CSV file')
+      setError('Please upload a CSV or XLSX file')
+    }
+  }
+
+  const handleConfirm = () => {
+    if (pendingFile) {
+      parseFile(pendingFile)
     }
   }
 
   const removeFile = () => {
     setFileName(null)
     setFileSize(null)
+    setPendingFile(null)
     setParsedData(null)
     setColumns([])
     setColumnRoles({})
     setError(null)
-    // Clear localStorage
+    setConfirmed(false)
     localStorage.removeItem(STORAGE_KEY)
   }
 
   const updateColumnRole = (column, role) => {
-    // If setting as reference, ensure only one reference column
     if (role === COLUMN_ROLES.REFERENCE) {
       const newRoles = { ...columnRoles }
-      Object.keys(newRoles).forEach(col => {
+      Object.keys(newRoles).forEach((col) => {
         if (newRoles[col] === COLUMN_ROLES.REFERENCE) {
           newRoles[col] = COLUMN_ROLES.UNUSED
         }
@@ -232,7 +270,7 @@ export function DataUpload({ onDataLoaded }) {
     const rowCount = parsedData.length
     const trainEnd = Math.floor(rowCount * preset.train)
     const valEnd = Math.floor(rowCount * (preset.train + preset.val))
-    
+
     setSplitConfig({
       trainStart: 1,
       trainEnd: trainEnd,
@@ -246,8 +284,7 @@ export function DataUpload({ onDataLoaded }) {
   const handleSplitChange = (field, value) => {
     const numValue = parseInt(value) || 0
     const newConfig = { ...splitConfig, [field]: numValue }
-    
-    // Auto-adjust adjacent ranges
+
     if (field === 'trainEnd') {
       newConfig.valStart = numValue + 1
     } else if (field === 'valEnd') {
@@ -257,7 +294,7 @@ export function DataUpload({ onDataLoaded }) {
     } else if (field === 'testStart') {
       newConfig.valEnd = numValue - 1
     }
-    
+
     setSplitConfig(newConfig)
   }
 
@@ -276,15 +313,28 @@ export function DataUpload({ onDataLoaded }) {
 
   return (
     <div className="space-y-6">
+      {/* Tabular Mode Info */}
+      {dataMode === 'tabular' && (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+          <Shuffle className="w-5 h-5 text-amber-500 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-500">Tabular Data Mode</p>
+            <p className="text-xs text-muted-foreground">
+              Rows will be randomly shuffled before dataset splitting. Time order is not preserved.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* File Upload Card */}
       <Card className="gradient-card border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="w-6 h-6 text-primary" />
-            Upload CSV Data
+            Upload Data
           </CardTitle>
           <CardDescription>
-            Upload a CSV file containing time series data. First row should be column headers.
+            Upload a CSV or XLSX file containing your dataset. First row should be column headers.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -299,18 +349,18 @@ export function DataUpload({ onDataLoaded }) {
               `}
             >
               <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-2">Drag and drop CSV file here</p>
-              <p className="text-sm text-muted-foreground mb-4">Supported format: .csv</p>
+              <p className="text-lg font-medium mb-2">Drag and drop file here</p>
+              <p className="text-sm text-muted-foreground mb-4">Supported formats: .csv, .xlsx</p>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileInput}
                 className="hidden"
                 id="file-upload"
               />
               <label htmlFor="file-upload">
                 <Button asChild>
-                  <span>Select CSV File</span>
+                  <span>Select File</span>
                 </Button>
               </label>
             </div>
@@ -326,12 +376,20 @@ export function DataUpload({ onDataLoaded }) {
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={removeFile}>
-                  <X className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {!confirmed && pendingFile && (
+                    <Button onClick={handleConfirm} size="sm">
+                      <Check className="w-4 h-4 mr-1" />
+                      Confirm
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={removeFile}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              
-              {parsedData && (
+
+              {confirmed && parsedData && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -347,11 +405,20 @@ export function DataUpload({ onDataLoaded }) {
                     </div>
                     <div className="text-2xl font-bold text-accent">{columns.length}</div>
                   </div>
+                  {dataMode === 'tabular' && (
+                    <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                        <Shuffle className="w-4 h-4" />
+                        Mode
+                      </div>
+                      <div className="text-lg font-bold text-amber-500">Shuffled</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
-          
+
           {error && (
             <div className="mt-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               {error}
@@ -361,7 +428,7 @@ export function DataUpload({ onDataLoaded }) {
       </Card>
 
       {/* Column Configuration Card */}
-      {parsedData && columns.length > 0 && (
+      {confirmed && parsedData && columns.length > 0 && (
         <Card className="gradient-card border-border/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -387,8 +454,8 @@ export function DataUpload({ onDataLoaded }) {
                         onClick={() => updateColumnRole(col, value)}
                         className={`
                           px-2 py-1 text-xs rounded border transition-all
-                          ${columnRoles[col] === value 
-                            ? ROLE_COLORS[value] 
+                          ${columnRoles[col] === value
+                            ? ROLE_COLORS[value]
                             : 'bg-transparent border-border text-muted-foreground hover:border-primary/50'}
                         `}
                       >
@@ -399,25 +466,25 @@ export function DataUpload({ onDataLoaded }) {
                 </div>
               ))}
             </div>
-            
+
             {/* Role Summary */}
             <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border">
               <div className="flex flex-wrap gap-4 text-sm">
                 <span>
                   <strong className="text-blue-400">Input:</strong>{' '}
-                  {Object.values(columnRoles).filter(r => r === 'input').length} columns
+                  {Object.values(columnRoles).filter((r) => r === 'input').length} columns
                 </span>
                 <span>
                   <strong className="text-green-400">Output:</strong>{' '}
-                  {Object.values(columnRoles).filter(r => r === 'output').length} columns
+                  {Object.values(columnRoles).filter((r) => r === 'output').length} columns
                 </span>
                 <span>
                   <strong className="text-yellow-400">Reference:</strong>{' '}
-                  {Object.values(columnRoles).filter(r => r === 'reference').length} column
+                  {Object.values(columnRoles).filter((r) => r === 'reference').length} column
                 </span>
                 <span>
                   <strong className="text-gray-400">Unused:</strong>{' '}
-                  {Object.values(columnRoles).filter(r => r === 'unused').length} columns
+                  {Object.values(columnRoles).filter((r) => r === 'unused').length} columns
                 </span>
               </div>
             </div>
@@ -426,7 +493,7 @@ export function DataUpload({ onDataLoaded }) {
       )}
 
       {/* Dataset Split Card */}
-      {parsedData && (
+      {confirmed && parsedData && (
         <Card className="gradient-card border-border/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -435,6 +502,9 @@ export function DataUpload({ onDataLoaded }) {
             </CardTitle>
             <CardDescription>
               Define row ranges for training, validation, and test sets (total: {parsedData.length} rows)
+              {dataMode === 'tabular' && (
+                <span className="ml-2 text-amber-500">• Rows will be shuffled</span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -454,7 +524,7 @@ export function DataUpload({ onDataLoaded }) {
                 ))}
               </div>
             </div>
-            
+
             {/* Split Configuration */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Training Set */}
@@ -485,7 +555,7 @@ export function DataUpload({ onDataLoaded }) {
                   />
                 </div>
               </div>
-              
+
               {/* Validation Set */}
               <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
                 <div className="flex items-center justify-between mb-3">
@@ -513,7 +583,7 @@ export function DataUpload({ onDataLoaded }) {
                   />
                 </div>
               </div>
-              
+
               {/* Test Set */}
               <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/10">
                 <div className="flex items-center justify-between mb-3">
@@ -541,10 +611,10 @@ export function DataUpload({ onDataLoaded }) {
                 </div>
               </div>
             </div>
-            
+
             {/* Validation Status */}
-            <div className={`mt-4 p-3 rounded-lg border ${isSplitValid() 
-              ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+            <div className={`mt-4 p-3 rounded-lg border ${isSplitValid()
+              ? 'bg-green-500/10 border-green-500/30 text-green-400'
               : 'bg-destructive/10 border-destructive/30 text-destructive'}`}
             >
               <div className="flex items-center gap-2">
@@ -566,7 +636,7 @@ export function DataUpload({ onDataLoaded }) {
       )}
 
       {/* Data Preview */}
-      {parsedData && columns.length > 0 && (
+      {confirmed && parsedData && columns.length > 0 && (
         <Card className="gradient-card border-border/50">
           <CardHeader>
             <CardTitle>Data Preview</CardTitle>

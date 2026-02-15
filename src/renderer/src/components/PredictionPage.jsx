@@ -15,25 +15,27 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
 import {
-  Trophy,
+  Crosshair,
+  Upload,
+  FileText,
+  FolderOpen,
   Target,
   TrendingUp,
   BarChart3,
   CheckCircle2,
-  Save,
   FlaskConical,
-  FolderOutput
+  X
 } from 'lucide-react'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
 
-// Mock metrics and predictions
+// Mock prediction results for demo
 const generateMockPredictions = () => {
   const data = []
-  for (let i = 0; i < 100; i++) {
-    const actual = 20 + Math.sin(i / 10) * 8 + Math.random() * 3
-    const predicted = actual + (Math.random() - 0.5) * 4
+  for (let i = 0; i < 80; i++) {
+    const actual = 18 + Math.sin(i / 8) * 10 + Math.random() * 2
+    const predicted = actual + (Math.random() - 0.5) * 5
     data.push({
       index: i,
       actual: parseFloat(actual.toFixed(2)),
@@ -43,65 +45,20 @@ const generateMockPredictions = () => {
   return data
 }
 
-const MOCK_TRIALS_RESULTS = [
-  {
-    id: 1,
-    r2: 0.892, mse: 12.45, mae: 2.89, rmse: 3.53, valLoss: 0.1823,
-    params: { learning_rate: 0.001, units: 128, num_layers: 4, dropout: 0.3 }
-  },
-  {
-    id: 2,
-    r2: 0.905, mse: 10.82, mae: 2.65, rmse: 3.29, valLoss: 0.1756,
-    params: { learning_rate: 0.0008, units: 192, num_layers: 6, dropout: 0.35 }
-  },
-  {
-    id: 3,
-    r2: 0.878, mse: 14.21, mae: 3.12, rmse: 3.77, valLoss: 0.1912,
-    params: { learning_rate: 0.002, units: 96, num_layers: 3, dropout: 0.2 }
-  },
-  {
-    id: 4,
-    r2: 0.921, mse: 9.15, mae: 2.41, rmse: 3.02, valLoss: 0.1698,
-    params: { learning_rate: 0.0006, units: 256, num_layers: 8, dropout: 0.4 }
-  }
-]
+export function PredictionPage() {
+  const [dataFile, setDataFile] = useState(null)
+  const [dataFileName, setDataFileName] = useState(null)
+  const [modelDir, setModelDir] = useState('./saved_models/latest')
+  const [predicted, setPredicted] = useState(false)
+  const [selectedOutput, setSelectedOutput] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
 
-// Available output columns for evaluation
-const OUTPUT_COLUMNS = ['Temperature', 'Humidity', 'Pressure', 'WindSpeed']
-
-export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
   const predictions = useMemo(() => generateMockPredictions(), [])
+  const outputColumns = ['Temperature', 'Humidity'] // mock output columns from model config
 
-  // Determine output columns from columnRoles
-  const outputColumns = useMemo(() => {
-    const outputs = Object.entries(columnRoles)
-      .filter(([, role]) => role === 'output')
-      .map(([col]) => col)
-    return outputs.length > 0 ? outputs : OUTPUT_COLUMNS
-  }, [columnRoles])
+  // Mock metrics
+  const metrics = { r2: 0.908, mse: 11.23, mae: 2.71, rmse: 3.35 }
 
-  const [selectedOutput, setSelectedOutput] = useState(outputColumns[0])
-  const [testRun, setTestRun] = useState(false) // whether test has been run
-  const [showAdvanced, setShowAdvanced] = useState(false) // advanced trial selection
-  const [selectedTrial, setSelectedTrial] = useState(null)
-  const [saveDir, setSaveDir] = useState('./saved_models')
-
-  // Best trial
-  const bestTrial = useMemo(() => {
-    return MOCK_TRIALS_RESULTS.reduce((best, trial) =>
-      trial.valLoss < best.valLoss ? trial : best
-    )
-  }, [])
-
-  const activeTrial = useMemo(() => {
-    if (mode !== 'autotune') return MOCK_TRIALS_RESULTS[3]
-    if (showAdvanced && selectedTrial !== null) {
-      return MOCK_TRIALS_RESULTS.find((t) => t.id === selectedTrial) || bestTrial
-    }
-    return bestTrial
-  }, [mode, showAdvanced, selectedTrial, bestTrial])
-
-  // Scatter data for actual vs predicted
   const scatterData = useMemo(() => {
     return predictions.map((d) => ({
       actual: d.actual,
@@ -109,7 +66,6 @@ export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
     }))
   }, [predictions])
 
-  // For y=x reference line bounds
   const scatterBounds = useMemo(() => {
     const allVals = predictions.flatMap((d) => [d.actual, d.predicted])
     const min = Math.floor(Math.min(...allVals))
@@ -117,127 +73,167 @@ export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
     return { min, max }
   }, [predictions])
 
-  const handleRunTest = () => {
-    setTestRun(true)
+  const isValidFile = (file) => {
+    const ext = file.name.split('.').pop().toLowerCase()
+    return ['csv', 'xlsx', 'xls'].includes(ext)
   }
 
-  const handleSave = () => {
-    // In production: call Electron IPC to save files
-    alert(
-      `Save model to: ${saveDir}\n\nWill create subdirectory with:\n• config.toml (model name, params, I/O columns, val loss)\n• model.onnx + model.pt\n• loss_history.csv`
-    )
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file && isValidFile(file)) {
+      setDataFile(file)
+      setDataFileName(file.name)
+      setPredicted(false)
+    }
+  }
+
+  const handleFileInput = (e) => {
+    const file = e.target.files[0]
+    if (file && isValidFile(file)) {
+      setDataFile(file)
+      setDataFileName(file.name)
+      setPredicted(false)
+    }
+  }
+
+  const removeFile = () => {
+    setDataFile(null)
+    setDataFileName(null)
+    setPredicted(false)
+  }
+
+  const handlePredict = () => {
+    setPredicted(true)
+    if (!selectedOutput && outputColumns.length > 0) {
+      setSelectedOutput(outputColumns[0])
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with Save button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="w-7 h-7 text-primary" />
-            Results & Assessment
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === 'manual' ? 'Manual training results' : 'Autotune optimization results'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              value={saveDir}
-              onChange={(e) => setSaveDir(e.target.value)}
-              className="w-48 text-sm"
-              placeholder="./saved_models"
-            />
-          </div>
-          <Button onClick={handleSave} variant="outline">
-            <Save className="w-4 h-4 mr-2" />
-            Save Model
-          </Button>
-        </div>
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Crosshair className="w-7 h-7 text-primary" />
+          Prediction
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Test a trained model on external datasets. Independent of training mode settings.
+        </p>
       </div>
 
-      {/* Autotune Trial Selection */}
-      {mode === 'autotune' && (
-        <Card className="gradient-card border-border/50">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+      {/* Data Upload */}
+      <Card className="gradient-card border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="w-6 h-6 text-primary" />
+            External Dataset
+          </CardTitle>
+          <CardDescription>
+            Upload a CSV or XLSX file for prediction
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!dataFileName ? (
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`
+                border-2 border-dashed rounded-lg p-10 text-center transition-all cursor-pointer
+                ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}
+              `}
+            >
+              <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-base font-medium mb-2">Drag and drop file here</p>
+              <p className="text-sm text-muted-foreground mb-3">Supported formats: .csv, .xlsx</p>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileInput}
+                className="hidden"
+                id="prediction-file-upload"
+              />
+              <label htmlFor="prediction-file-upload">
+                <Button asChild size="sm">
+                  <span>Select File</span>
+                </Button>
+              </label>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
               <div className="flex items-center gap-3">
-                <Trophy className="w-5 h-5 text-yellow-500" />
+                <FileText className="w-8 h-8 text-primary" />
                 <div>
-                  <p className="text-sm font-medium">
-                    Best Trial: #{bestTrial.id} — Val Loss: {bestTrial.valLoss.toFixed(4)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    R²: {bestTrial.r2.toFixed(3)} | RMSE: {bestTrial.rmse.toFixed(2)}
-                  </p>
+                  <p className="font-medium">{dataFileName}</p>
+                  <p className="text-sm text-muted-foreground">Ready for prediction</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showAdvanced}
-                    onChange={(e) => {
-                      setShowAdvanced(e.target.checked)
-                      if (!e.target.checked) setSelectedTrial(null)
-                    }}
-                    className="rounded border-border"
-                  />
-                  Advanced
-                </label>
-                {showAdvanced && (
-                  <select
-                    value={selectedTrial ?? bestTrial.id}
-                    onChange={(e) => setSelectedTrial(Number(e.target.value))}
-                    className="bg-secondary border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    {MOCK_TRIALS_RESULTS.map((trial) => (
-                      <option key={trial.id} value={trial.id}>
-                        Trial #{trial.id} — Val Loss: {trial.valLoss.toFixed(4)}
-                        {trial.id === bestTrial.id ? ' ★ Best' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-
-            {/* Selected trial params */}
-            {showAdvanced && selectedTrial && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {Object.entries(activeTrial.params).map(([key, value]) => (
-                  <Badge key={key} variant="secondary" className="text-xs">
-                    {key}: {typeof value === 'number' ? (value < 0.01 ? value.toExponential(2) : value) : value}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Run Test Button */}
-      {!testRun && (
-        <Card className="gradient-card border-border/50">
-          <CardContent className="py-12">
-            <div className="text-center">
-              <FlaskConical className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-40" />
-              <p className="text-lg font-medium text-muted-foreground mb-4">
-                Training completed. Run evaluation on the test set to see results.
-              </p>
-              <Button onClick={handleRunTest} size="lg">
-                <FlaskConical className="w-5 h-5 mr-2" />
-                Run Test on Test Set
+              <Button variant="ghost" size="icon" onClick={removeFile}>
+                <X className="w-4 h-4" />
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+          <p className="text-xs text-amber-500 mt-3">
+            ⚠ Please ensure the dataset contains all the input and output columns required by the model.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Model Directory */}
+      <Card className="gradient-card border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderOpen className="w-6 h-6 text-primary" />
+            Model Directory
+          </CardTitle>
+          <CardDescription>
+            Path to saved model directory (default: latest saved model)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Input
+              type="text"
+              value={modelDir}
+              onChange={(e) => setModelDir(e.target.value)}
+              placeholder="./saved_models/latest"
+              className="flex-1"
+            />
+            <Badge variant="outline" className="text-xs shrink-0">
+              config.toml + model files
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            The directory should contain config.toml and model files (.onnx or .pt).
+            The model&apos;s input/output column configuration will be loaded from config.toml.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Run Prediction Button */}
+      {dataFileName && !predicted && (
+        <div className="flex justify-center">
+          <Button onClick={handlePredict} size="lg">
+            <FlaskConical className="w-5 h-5 mr-2" />
+            Run Prediction
+          </Button>
+        </div>
       )}
 
-      {/* Results (shown only after test) */}
-      {testRun && (
+      {/* Prediction Results */}
+      {predicted && (
         <>
           {/* Output Variable Selection */}
           <Card className="gradient-card border-border/50">
@@ -267,10 +263,10 @@ export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
           {/* Metrics Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'R²', value: activeTrial.r2.toFixed(4), icon: Target, color: 'text-blue-400' },
-              { label: 'MSE', value: activeTrial.mse.toFixed(4), icon: TrendingUp, color: 'text-yellow-400' },
-              { label: 'MAE', value: activeTrial.mae.toFixed(4), icon: BarChart3, color: 'text-green-400' },
-              { label: 'RMSE', value: activeTrial.rmse.toFixed(4), icon: CheckCircle2, color: 'text-purple-400' }
+              { label: 'R²', value: metrics.r2.toFixed(4), icon: Target, color: 'text-blue-400' },
+              { label: 'MSE', value: metrics.mse.toFixed(4), icon: TrendingUp, color: 'text-yellow-400' },
+              { label: 'MAE', value: metrics.mae.toFixed(4), icon: BarChart3, color: 'text-green-400' },
+              { label: 'RMSE', value: metrics.rmse.toFixed(4), icon: CheckCircle2, color: 'text-purple-400' }
             ].map((metric) => (
               <Card key={metric.label} className="gradient-card border-border/50">
                 <CardContent className="py-4">
@@ -349,7 +345,7 @@ export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
                 Actual vs Predicted Scatter — {selectedOutput}
               </CardTitle>
               <CardDescription>
-                R² = {activeTrial.r2.toFixed(4)} • Points closer to the diagonal line indicate better predictions
+                R² = {metrics.r2.toFixed(4)} • Points closer to the diagonal line indicate better predictions
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -417,36 +413,6 @@ export function ResultsDashboard({ mode = 'manual', columnRoles = {} }) {
                     />
                   </ScatterChart>
                 </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Bottom Save Button */}
-          <Card className="gradient-card border-border/50">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FolderOutput className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">Export Model & Results</p>
-                    <p className="text-xs text-muted-foreground">
-                      Save config.toml, model files (.onnx, .pt), and loss_history.csv
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="text"
-                    value={saveDir}
-                    onChange={(e) => setSaveDir(e.target.value)}
-                    className="w-48 text-sm"
-                    placeholder="./saved_models"
-                  />
-                  <Button onClick={handleSave}>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save
-                  </Button>
-                </div>
               </div>
             </CardContent>
           </Card>
