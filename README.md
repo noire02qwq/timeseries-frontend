@@ -6,6 +6,39 @@ A modern Electron desktop application for deep learning analysis of Disinfection
 ![React](https://img.shields.io/badge/React-19.2.1-61DAFB?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1.7-38B2AC?logo=tailwindcss)
 
+## 🌐 Backend API Integration
+
+This frontend application is designed to work with a backend ML training server. The frontend runs on **port 110** and communicates with the backend on **port 310**.
+
+### Quick Start
+
+1. **Start the Demo Backend Server** (for development/testing):
+   ```bash
+   cd demo-server
+   yarn install
+   yarn start
+   # Server will start on http://localhost:310
+   ```
+
+2. **Start the Frontend** (in a new terminal):
+   ```bash
+   yarn dev
+   # Frontend will start on http://localhost:110
+   ```
+
+### API Documentation
+
+- **[API Specification](API_SPEC.md)** — Complete API endpoint reference
+- **[Backend Developer Guide](BACKEND_GUIDE.md)** — Guide for implementing the backend
+
+### Key Features
+
+- **RESTful API** — All communication via HTTP endpoints
+- **WebSocket Streaming** — Real-time log streaming for training/tuning
+- **File Upload** — Support for CSV and Excel files
+- **Job Management** — Async job execution with status polling
+- **Configuration Export** — TOML configuration files
+
 ---
 
 ## ✨ Features

@@ -17,8 +17,10 @@ import {
   CheckCircle2,
   TrendingDown,
   Eye,
-  ChevronDown
+  ChevronDown,
+  Terminal
 } from 'lucide-react'
+import { LogModal } from './LogModal'
 
 // Mock training data for demo
 const generateMockTrainingData = () => {
@@ -42,6 +44,9 @@ const MOCK_TRIALS = [
 ]
 
 export function TrainingMonitor({ mode = 'manual' }) {
+  const [showLogModal, setShowLogModal] = useState(false)
+  const [currentJobId, setCurrentJobId] = useState(null)
+
   const trainingData = useMemo(() => generateMockTrainingData(), [])
 
   // Current progress state
@@ -55,6 +60,10 @@ export function TrainingMonitor({ mode = 'manual' }) {
   const trialProgress = (currentTrial / maxTrials) * 100
 
   // Show button state - only show charts on demand
+  // Add LogModal state
+  const [showLogModal, setShowLogModal] = useState(false)
+  const [currentJobId, setCurrentJobId] = useState(null)
+
   const [showCharts, setShowCharts] = useState(false)
   const [selectedTrial, setSelectedTrial] = useState(currentTrial)
 
@@ -193,7 +202,7 @@ export function TrainingMonitor({ mode = 'manual' }) {
             )}
           </div>
 
-          {/* Show Button */}
+          {/* Show Buttons */}
           <div className="flex items-center justify-between">
             {mode === 'autotune' && (
               <div className="flex items-center gap-2">
@@ -213,10 +222,19 @@ export function TrainingMonitor({ mode = 'manual' }) {
                 </select>
               </div>
             )}
-            <Button onClick={() => setShowCharts(true)} className="ml-auto">
-              <Eye className="w-4 h-4 mr-2" />
-              Show Loss Curves
-            </Button>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => setShowLogModal(true)}
+              >
+                <Terminal className="w-4 h-4 mr-2" />
+                View Logs
+              </Button>
+              <Button onClick={() => setShowCharts(true)}>
+                <Eye className="w-4 h-4 mr-2" />
+                Show Loss Curves
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -294,6 +312,17 @@ export function TrainingMonitor({ mode = 'manual' }) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Log Modal */}
+      {showLogModal && (
+        <LogModal
+          isOpen={showLogModal}
+          onClose={() => setShowLogModal(false)}
+          jobId={currentJobId || 'mock-job-id'}
+          jobType={mode === 'autotune' ? 'tune' : 'train'}
+          title={`${mode === 'autotune' ? 'Autotune' : 'Training'} Logs`}
+        />
       )}
     </div>
   )
