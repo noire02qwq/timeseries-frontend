@@ -46,6 +46,10 @@
   border-color: var(--color-border);
 }
 
+html {
+  background-color: hsl(222 47% 5%);
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);

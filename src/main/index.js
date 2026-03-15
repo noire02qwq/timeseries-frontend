@@ -19,6 +19,10 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    // Open DevTools in development to debug blank screen
+    if (is.dev) {
+      mainWindow.webContents.openDevTools()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -28,9 +32,13 @@ function createWindow() {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
+  console.log('[Main] is.dev:', is.dev)
+  console.log('[Main] ELECTRON_RENDERER_URL:', process.env['ELECTRON_RENDERER_URL'])
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    console.log('[Main] Loading dev URL:', process.env['ELECTRON_RENDERER_URL'])
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
+    console.log('[Main] Loading local HTML file')
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }

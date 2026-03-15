@@ -60,10 +60,6 @@ export function TrainingMonitor({ mode = 'manual' }) {
   const trialProgress = (currentTrial / maxTrials) * 100
 
   // Show button state - only show charts on demand
-  // Add LogModal state
-  const [showLogModal, setShowLogModal] = useState(false)
-  const [currentJobId, setCurrentJobId] = useState(null)
-
   const [showCharts, setShowCharts] = useState(false)
   const [selectedTrial, setSelectedTrial] = useState(currentTrial)
 

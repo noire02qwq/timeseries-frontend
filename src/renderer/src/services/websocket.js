@@ -273,16 +273,6 @@ class WebSocketService {
 export const wsService = new WebSocketService()
 
 export default {
-  APIError,
-  request,
-  healthCheck,
-  dataApi,
-  trainApi,
-  tuneApi,
-  testApi,
-  predictApi,
-  modelApi,
-  configApi,
   wsService,
   WS_STATES,
   MSG_TYPES,
