@@ -5,8 +5,10 @@
 
 // Backend API configuration
 export const API_CONFIG = {
-  // Backend server URL (port 310 as specified)
-  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:310',
+  // Backend server URL
+  // For Docker: use relative path (proxied by nginx)
+  // For development: use VITE_API_URL or default to localhost:5555
+  BASE_URL: import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5555' : ''),
 
   // API version
   VERSION: 'v1',
@@ -22,7 +24,7 @@ export const API_CONFIG = {
 // WebSocket configuration
 export const WS_CONFIG = {
   // WebSocket URL
-  URL: import.meta.env.VITE_WS_URL || 'ws://localhost:310',
+  URL: import.meta.env.VITE_WS_URL || 'ws://localhost:5555',
 
   // Reconnection settings
   RECONNECT_INTERVAL: 3000,
@@ -41,6 +43,7 @@ export const ENDPOINTS = {
   DATA_UPLOAD: '/api/v1/data/upload',
   DATA_INFO: '/api/v1/data/info',
   DATA_PREVIEW: '/api/v1/data/preview',
+  DATA_SPLIT: '/api/v1/data/split',
 
   // Training operations
   TRAIN_START: '/api/v1/train',
@@ -59,6 +62,10 @@ export const ENDPOINTS = {
   // Prediction operations
   PREDICT_START: '/api/v1/predict',
   PREDICT_STATUS: (jobId) => `/api/v1/predict/${jobId}/status`,
+
+  // Training output data
+  LOSS_HISTORY: (jobId) => `/api/v1/jobs/${jobId}/loss-history`,
+  TEST_COMPARISON: (jobId) => `/api/v1/jobs/${jobId}/test-comparison`,
 
   // Model management
   MODELS_LIST: '/api/v1/models',

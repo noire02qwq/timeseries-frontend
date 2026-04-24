@@ -8,22 +8,22 @@ A modern Electron desktop application for deep learning analysis of Disinfection
 
 ## 🌐 Backend API Integration
 
-This frontend application is designed to work with a backend ML training server. The frontend runs on **port 110** and communicates with the backend on **port 310**.
+This frontend application is designed to work with a backend ML training server. The frontend runs on **port 5173** and communicates with the backend on **port 5555**.
 
 ### Quick Start
 
-1. **Start the Demo Backend Server** (for development/testing):
+1. **Start the Backend Server** (in one terminal):
    ```bash
-   cd demo-server
-   yarn install
-   yarn start
-   # Server will start on http://localhost:310
+   cd ../data-analysis-on-DBPs
+   source .venv/bin/activate
+   python backend_server.py --port 5555
+   # Server will start on http://localhost:5555
    ```
 
-2. **Start the Frontend** (in a new terminal):
+2. **Start the Frontend** (in another terminal):
    ```bash
    yarn dev
-   # Frontend will start on http://localhost:110
+   # Frontend will start on http://localhost:5173
    ```
 
 ### API Documentation
@@ -412,3 +412,40 @@ Packaging is configured in `electron-builder.yml`. You can customize:
 ## 📝 License
 
 MIT
+
+## 🐳 Docker Deployment
+
+The frontend can be deployed using Docker alongside the backend via Docker Compose. See the root-level `README.md` for the complete deployment guide.
+
+### Quick Docker Start
+
+From the project root:
+```bash
+docker-compose up frontend
+```
+
+### Standalone Frontend Docker
+
+```bash
+# Build image
+docker build -t dbps-frontend:latest .
+
+# Run container
+docker run -d -p 5173:5173 \
+  -e VITE_API_URL=http://localhost:5555 \
+  --name dbps-frontend \
+  dbps-frontend:latest
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NODE_ENV` | development | Node environment |
+| `VITE_API_URL` | http://localhost:5555 | Backend API URL |
+
+### Ports
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend | 5173 | React dev server |

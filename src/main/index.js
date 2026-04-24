@@ -19,10 +19,8 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
-    // Open DevTools in development to debug blank screen
-    if (is.dev) {
-      mainWindow.webContents.openDevTools()
-    }
+    // DevTools is disabled - do not open automatically
+    // Removed: mainWindow.webContents.openDevTools()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

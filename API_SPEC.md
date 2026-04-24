@@ -1,8 +1,8 @@
 # API Specification
 
 **Version:** 1.0.0
-**Base URL:** `http://localhost:310/api/v1`
-**WebSocket:** `ws://localhost:310/ws/logs`
+**Base URL:** `http://localhost:5555/api/v1`
+**Health Check:** `http://localhost:5555/health`
 
 ---
 
@@ -418,7 +418,7 @@ List all saved models.
 
 ## WebSocket Log Streaming
 
-Connect to `ws://localhost:310/ws/logs?jobId={jobId}&type={type}`
+Connect to `ws://localhost:5555/ws/logs?jobId={jobId}&type={type}`
 
 ### Query Parameters
 
@@ -471,10 +471,10 @@ yarn install
 yarn start
 ```
 
-The server will start on `http://localhost:310`.
+The server will start on `http://localhost:5555`.
 
 ---
 
 ## Frontend Configuration
 
-The frontend expects the backend at `http://localhost:310`. Update `src/renderer/src/services/config.js` if your backend runs on a different port.
+The frontend expects the backend at `http://localhost:5555`. Update `src/renderer/src/services/config.js` if your backend runs on a different port.

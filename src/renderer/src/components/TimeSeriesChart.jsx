@@ -14,6 +14,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { TrendingUp, Check, BarChart3 } from 'lucide-react'
+import { useWorkflowStore } from '../store/workflowStore'
 
 // Color palette for lines
 const LINE_COLORS = [
@@ -45,10 +46,14 @@ const generateMockData = () => {
   }
 }
 
-export function TimeSeriesChart({ data: externalData, columns: externalColumns, columnRoles }) {
+export function TimeSeriesChart({ data: externalData, columns: externalColumns, columnRoles: externalColumnRoles }) {
+  const { dataset } = useWorkflowStore()
   const mockData = useMemo(() => generateMockData(), [])
-  const data = externalData || mockData.data
-  const allColumns = externalColumns || mockData.columns
+
+  // Use external props, then store data, then mock data
+  const data = externalData || dataset.previewData || mockData.data
+  const columnRoles = externalColumnRoles || dataset.columnRoles
+  const allColumns = externalColumns || (dataset.columns.length > 0 ? dataset.columns.map(c => c.name || c) : mockData.columns)
 
   const referenceColumn = useMemo(() => {
     if (columnRoles) {
@@ -222,6 +227,7 @@ export function TimeSeriesChart({ data: externalData, columns: externalColumns, 
                     <YAxis
                       stroke="hsl(199, 89%, 60%)"
                       tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
+                      domain={['auto', 'auto']}
                     />
                     <Tooltip
                       contentStyle={{

@@ -1,4 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import {
+  Square,
+  RotateCcw,
+  Terminal,
+  Activity,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Loader2,
+  Check,
+  TrendingDown,
+  RefreshCw
+} from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -9,274 +22,287 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import {
-  Activity,
-  CheckCircle2,
-  TrendingDown,
-  Eye,
-  ChevronDown,
-  Terminal
-} from 'lucide-react'
-import { LogModal } from './LogModal'
+import { Progress } from './ui/progress'
+import { ScrollArea } from './ui/scroll-area'
+import { useWorkflowStore, WORKFLOW_STEPS } from '../store/workflowStore'
+import { trainApi, tuneApi, outputApi } from '../services/api'
 
-// Mock training data for demo
-const generateMockTrainingData = () => {
-  const data = []
-  for (let i = 1; i <= 200; i++) {
-    data.push({
-      epoch: i,
-      trainLoss: 0.5 * Math.exp(-i / 50) + 0.08 + Math.random() * 0.02,
-      valLoss: 0.55 * Math.exp(-i / 55) + 0.12 + Math.random() * 0.03
-    })
-  }
-  return data
+const STATUS_CONFIG = {
+  idle: { label: 'Idle', color: 'bg-gray-500', icon: Clock },
+  pending: { label: 'Pending', color: 'bg-yellow-500', icon: Loader2 },
+  running: { label: 'Running', color: 'bg-blue-500', icon: Activity },
+  completed: { label: 'Completed', color: 'bg-green-500', icon: CheckCircle },
+  failed: { label: 'Failed', color: 'bg-red-500', icon: XCircle },
+  stopped: { label: 'Stopped', color: 'bg-orange-500', icon: Square }
 }
 
-const MOCK_TRIALS = [
-  { id: 1, bestEpoch: 87, bestValLoss: 0.1823, trainLoss: 0.1234, completed: true },
-  { id: 2, bestEpoch: 92, bestValLoss: 0.1756, trainLoss: 0.1189, completed: true },
-  { id: 3, bestEpoch: 78, bestValLoss: 0.1912, trainLoss: 0.1345, completed: true },
-  { id: 4, bestEpoch: 95, bestValLoss: 0.1698, trainLoss: 0.1156, completed: true, isBest: true },
-  { id: 5, bestEpoch: 0, bestValLoss: null, trainLoss: null, completed: false }
-]
+export function TrainingMonitor() {
+  const { trainingMode, training, tuning, setTraining, setTuning, setCurrentStep } =
+    useWorkflowStore()
 
-export function TrainingMonitor({ mode = 'manual' }) {
-  const [showLogModal, setShowLogModal] = useState(false)
-  const [currentJobId, setCurrentJobId] = useState(null)
+  const isTuning = trainingMode === 'autotune'
+  const activeJob = isTuning ? tuning : training
 
-  const trainingData = useMemo(() => generateMockTrainingData(), [])
+  const [logs, setLogs] = useState([])
+  const [progress, setProgress] = useState(0)
+  const [status, setStatus] = useState('idle')
+  const [isStopping, setIsStopping] = useState(false)
+  const [lossHistory, setLossHistory] = useState([])
+  const [lossColumns, setLossColumns] = useState([])
+  const [lossLoading, setLossLoading] = useState(false)
+  const lossPollRef = useRef(null)
 
-  // Current progress state
-  const currentEpoch = 156
-  const maxEpochs = 500
-  const epochProgress = (currentEpoch / maxEpochs) * 100
+  // Poll for status updates
+  useEffect(() => {
+    if (!activeJob.jobId) return
 
-  // Trial state for autotune
-  const currentTrial = 5
-  const maxTrials = 10
-  const trialProgress = (currentTrial / maxTrials) * 100
+    const pollInterval = setInterval(async () => {
+      try {
+        const api = isTuning ? tuneApi : trainApi
+        const response = await api.getStatus(activeJob.jobId)
+        const data = response.data
 
-  // Show button state - only show charts on demand
-  const [showCharts, setShowCharts] = useState(false)
-  const [selectedTrial, setSelectedTrial] = useState(currentTrial)
+        // Update local state
+        setStatus(data.status)
+        setProgress(data.progress || 0)
+        if (data.logs && data.logs.length > 0) {
+          setLogs(data.logs)
+        }
 
-  // Current training losses
-  const currentTrainLoss = trainingData[currentEpoch - 1]?.trainLoss?.toFixed(4) || 'N/A'
-  const currentValLoss = trainingData[currentEpoch - 1]?.valLoss?.toFixed(4) || 'N/A'
+        // Update store
+        if (isTuning) {
+          setTuning({
+            status: data.status,
+            progress: data.progress,
+            logs: data.logs,
+            result: data.result,
+            error: data.error
+          })
+        } else {
+          setTraining({
+            status: data.status,
+            progress: data.progress,
+            logs: data.logs,
+            result: data.result,
+            error: data.error
+          })
+        }
 
-  // Best losses
-  const bestValLossEntry = useMemo(() => {
-    const slice = trainingData.slice(0, currentEpoch)
-    return slice.reduce(
-      (best, entry) => (entry.valLoss < best.valLoss ? entry : best),
-      slice[0]
-    )
-  }, [trainingData, currentEpoch])
+        // Handle completion
+        if (['completed', 'failed', 'stopped'].includes(data.status)) {
+          clearInterval(pollInterval)
+        }
+      } catch (err) {
+        console.error('Failed to poll status:', err)
+      }
+    }, 2000)
 
-  // Convergence detection
-  const isConverging = useMemo(() => {
-    if (currentEpoch < 20) return false
-    const recent = trainingData.slice(currentEpoch - 20, currentEpoch)
-    const avgRecent = recent.reduce((sum, d) => sum + d.valLoss, 0) / recent.length
-    const earlier = trainingData.slice(currentEpoch - 40, currentEpoch - 20)
-    if (earlier.length === 0) return false
-    const avgEarlier = earlier.reduce((sum, d) => sum + d.valLoss, 0) / earlier.length
-    return Math.abs(avgRecent - avgEarlier) < 0.005
-  }, [trainingData, currentEpoch])
+    return () => clearInterval(pollInterval)
+  }, [activeJob.jobId, isTuning, setTraining, setTuning])
 
-  // Chart data up to current epoch
-  const chartData = useMemo(() => {
-    if (!showCharts) return []
-    return trainingData.slice(0, currentEpoch)
-  }, [trainingData, currentEpoch, showCharts])
+  // Poll loss history
+  useEffect(() => {
+    if (!activeJob.jobId || activeJob.status === 'idle') {
+      setLossHistory([])
+      setLossColumns([])
+      return
+    }
+
+    const fetchLoss = async () => {
+      try {
+        const response = await outputApi.getLossHistory(activeJob.jobId)
+        if (response.data?.lossHistory) {
+          setLossHistory(response.data.lossHistory)
+          setLossColumns(response.data.columns || [])
+        }
+      } catch (err) {
+        if (err.status !== 404) {
+          console.error('Failed to fetch loss history:', err)
+        }
+      }
+    }
+
+    fetchLoss()
+
+    if (activeJob.status === 'running' || activeJob.status === 'pending') {
+      lossPollRef.current = setInterval(fetchLoss, 5000)
+    }
+
+    return () => {
+      if (lossPollRef.current) {
+        clearInterval(lossPollRef.current)
+        lossPollRef.current = null
+      }
+    }
+  }, [activeJob.jobId, activeJob.status])
+
+  const handleStop = async () => {
+    if (!activeJob.jobId) return
+    try {
+      setIsStopping(true)
+      const api = isTuning ? tuneApi : trainApi
+      await api.stop(activeJob.jobId)
+      setStatus('stopped')
+    } catch (err) {
+      console.error('Failed to stop:', err)
+    } finally {
+      setIsStopping(false)
+    }
+  }
+
+  const handleViewResults = () => {
+    setCurrentStep(WORKFLOW_STEPS.RESULTS)
+  }
+
+  const handleReset = () => {
+    setLogs([])
+    setProgress(0)
+    setStatus('idle')
+    setLossHistory([])
+    setLossColumns([])
+  }
+
+  const handleRefreshLoss = async () => {
+    if (!activeJob.jobId) return
+    setLossLoading(true)
+    try {
+      const response = await outputApi.getLossHistory(activeJob.jobId)
+      if (response.data?.lossHistory) {
+        setLossHistory(response.data.lossHistory)
+        setLossColumns(response.data.columns || [])
+      }
+    } catch (err) {
+      console.error('Failed to refresh loss:', err)
+    } finally {
+      setLossLoading(false)
+    }
+  }
+
+  const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.idle
+  const StatusIcon = statusConfig.icon
 
   return (
     <div className="space-y-6">
-      {/* Progress Bars */}
-      <Card className="gradient-card border-border/50">
+      {/* Status Card */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            Training Progress
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Training Status
+            </span>
+            <Badge className={statusConfig.color}>
+              <StatusIcon className="w-3 h-3 mr-1" />
+              {statusConfig.label}
+            </Badge>
           </CardTitle>
-          <CardDescription>
-            {mode === 'manual' ? 'Manual training progress' : 'Autotune optimization progress'}
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Trial Progress (Autotune only) */}
-          {mode === 'autotune' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Trial Progress</span>
-                <span className="font-mono font-medium">
-                  {currentTrial} / {maxTrials} trials
-                </span>
-              </div>
-              <div className="w-full bg-secondary rounded-full h-3">
-                <div
-                  className="bg-yellow-500 h-3 rounded-full transition-all"
-                  style={{ width: `${trialProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Epoch Progress */}
+        <CardContent className="space-y-4">
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Epoch Progress</span>
-              <span className="font-mono font-medium">
-                {currentEpoch} / {maxEpochs} ({epochProgress.toFixed(1)}%)
-              </span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Progress</span>
+              <span className="font-medium">{progress.toFixed(1)}%</span>
             </div>
-            <div className="w-full bg-secondary rounded-full h-3">
-              <div
-                className="bg-primary h-3 rounded-full transition-all"
-                style={{ width: `${epochProgress}%` }}
-              />
-            </div>
+            <Progress value={progress} className="h-2" />
           </div>
 
-          {/* Current & Best Losses */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-              <p className="text-xs text-muted-foreground mb-1">Current Epoch {currentEpoch}</p>
-              <div className="flex justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Train Loss</p>
-                  <p className="text-lg font-mono font-bold text-blue-400">{currentTrainLoss}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Val Loss</p>
-                  <p className="text-lg font-mono font-bold text-yellow-400">{currentValLoss}</p>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-              <p className="text-xs text-muted-foreground mb-1">
-                Best Epoch {bestValLossEntry?.epoch}
-              </p>
-              <div className="flex justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Train Loss</p>
-                  <p className="text-lg font-mono font-bold text-blue-400">
-                    {bestValLossEntry?.trainLoss?.toFixed(4)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Val Loss</p>
-                  <p className="text-lg font-mono font-bold text-green-400">
-                    {bestValLossEntry?.valLoss?.toFixed(4)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Convergence Indicator */}
-          <div
-            className={`flex items-center gap-2 p-3 rounded-lg border ${
-              isConverging
-                ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
-                : 'bg-green-500/10 border-green-500/30 text-green-400'
-            }`}
-          >
-            {isConverging ? (
-              <>
-                <TrendingDown className="w-4 h-4" />
-                <span className="text-sm">Training appears to be converging</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-sm">Training is progressing normally</span>
-              </>
-            )}
-          </div>
-
-          {/* Show Buttons */}
-          <div className="flex items-center justify-between">
-            {mode === 'autotune' && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground">View Trial:</label>
-                <select
-                  value={selectedTrial}
-                  onChange={(e) => setSelectedTrial(Number(e.target.value))}
-                  className="bg-secondary border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {MOCK_TRIALS.map((trial) => (
-                    <option key={trial.id} value={trial.id}>
-                      Trial #{trial.id}
-                      {trial.isBest ? ' ★ Best' : ''}
-                      {trial.bestValLoss ? ` — Val Loss: ${trial.bestValLoss.toFixed(4)}` : ' — In Progress'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-2 ml-auto">
-              <Button
-                variant="outline"
-                onClick={() => setShowLogModal(true)}
-              >
-                <Terminal className="w-4 h-4 mr-2" />
-                View Logs
+          <div className="flex gap-2">
+            {status === 'running' || status === 'pending' ? (
+              <Button variant="destructive" onClick={handleStop} disabled={isStopping} className="gap-2">
+                {isStopping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                Stop
               </Button>
-              <Button onClick={() => setShowCharts(true)}>
-                <Eye className="w-4 h-4 mr-2" />
-                Show Loss Curves
+            ) : status === 'completed' ? (
+              <Button onClick={handleViewResults} className="gap-2">
+                <Check className="w-4 h-4" />
+                View Results
               </Button>
-            </div>
+            ) : null}
+
+            {['completed', 'failed', 'stopped'].includes(status) && (
+              <Button variant="outline" onClick={handleReset} className="gap-2">
+                <RotateCcw className="w-4 h-4" />
+                Reset
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Loss Curves Chart - only shown after clicking Show */}
-      {showCharts && (
-        <Card className="gradient-card border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingDown className="w-6 h-6 text-primary" />
-              Loss Curves
-              {mode === 'autotune' && (
-                <Badge variant="outline" className="ml-2">
-                  Trial #{selectedTrial}
-                </Badge>
+      {/* Training Logs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Terminal className="w-5 h-5" />
+            Training Logs
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-64 w-full rounded-md border">
+            <div className="p-4 space-y-1 font-mono text-sm">
+              {logs.length === 0 ? (
+                <p className="text-muted-foreground">No logs yet...</p>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className="text-foreground">{log}</div>
+                ))
               )}
-            </CardTitle>
-            <CardDescription>
-              Snapshot at epoch {currentEpoch} — Click Show again to refresh
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Loss Curve */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <TrendingDown className="w-5 h-5" />
+              Training Loss Curve
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshLoss}
+              disabled={lossLoading || !activeJob.jobId}
+              className="gap-1"
+            >
+              <RefreshCw className={`w-4 h-4 ${lossLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {lossHistory.length === 0 ? (
+            <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+              {lossLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Loading...
+                </div>
+              ) : (
+                <p>No loss data yet. Click Refresh after training starts.</p>
+              )}
+            </div>
+          ) : (
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={lossHistory} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="epoch"
                     stroke="hsl(199, 89%, 60%)"
                     tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
-                    label={{
-                      value: 'Epoch',
-                      position: 'insideBottomRight',
-                      offset: -5,
-                      fill: 'hsl(199, 89%, 60%)'
-                    }}
+                    label={{ value: 'Epoch', position: 'insideBottom', offset: -5, fill: 'hsl(199, 89%, 60%)' }}
                   />
                   <YAxis
                     stroke="hsl(199, 89%, 60%)"
                     tick={{ fill: 'hsl(199, 89%, 60%)', fontSize: 12 }}
-                    label={{
-                      value: 'Loss',
-                      angle: -90,
-                      position: 'insideLeft',
-                      fill: 'hsl(199, 89%, 60%)'
-                    }}
+                    label={{ value: 'Loss', angle: -90, position: 'insideLeft', fill: 'hsl(199, 89%, 60%)' }}
+                    domain={['auto', 'auto']}
                   />
                   <Tooltip
                     contentStyle={{
@@ -287,39 +313,18 @@ export function TrainingMonitor({ mode = 'manual' }) {
                     }}
                   />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="trainLoss"
-                    stroke="hsl(217, 91%, 60%)"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Train Loss"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="valLoss"
-                    stroke="hsl(45, 93%, 47%)"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Validation Loss"
-                  />
+                  {lossColumns.includes('train_loss') && (
+                    <Line type="monotone" dataKey="train_loss" stroke="hsl(217, 91%, 60%)" strokeWidth={2} dot={false} name="Train Loss" />
+                  )}
+                  {lossColumns.includes('val_loss') && (
+                    <Line type="monotone" dataKey="val_loss" stroke="hsl(142, 71%, 45%)" strokeWidth={2} dot={false} name="Val Loss" strokeDasharray="5 5" />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Log Modal */}
-      {showLogModal && (
-        <LogModal
-          isOpen={showLogModal}
-          onClose={() => setShowLogModal(false)}
-          jobId={currentJobId || 'mock-job-id'}
-          jobType={mode === 'autotune' ? 'tune' : 'train'}
-          title={`${mode === 'autotune' ? 'Autotune' : 'Training'} Logs`}
-        />
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -128,10 +128,16 @@ export const dataApi = {
     return request(`${ENDPOINTS.DATA_INFO}/${datasetId}`, { method: 'GET' })
   },
 
-  // Get data preview
-  getPreview: async (datasetId, limit = 100) => {
-    return request(`${ENDPOINTS.DATA_PREVIEW}/${datasetId}?limit=${limit}`, { method: 'GET' })
-  },
+  // Split dataset
+  split: async (datasetId, splitConfig) => {
+    return request(ENDPOINTS.DATA_SPLIT, {
+      method: 'POST',
+      body: JSON.stringify({
+        datasetId,
+        ...splitConfig
+      })
+    })
+  }
 }
 
 // Training API
@@ -245,6 +251,19 @@ export const configApi = {
   // Load configuration
   load: async (configId) => {
     return request(`${ENDPOINTS.CONFIG_LOAD}/${configId}`, { method: 'GET' })
+  },
+}
+
+// Training Output API
+export const outputApi = {
+  // Get loss history for a job
+  getLossHistory: async (jobId) => {
+    return request(ENDPOINTS.LOSS_HISTORY(jobId), { method: 'GET' })
+  },
+
+  // Get test comparison data (true vs predicted)
+  getTestComparison: async (jobId) => {
+    return request(ENDPOINTS.TEST_COMPARISON(jobId), { method: 'GET' })
   },
 }
 

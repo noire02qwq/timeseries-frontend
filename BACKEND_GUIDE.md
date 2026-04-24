@@ -69,7 +69,7 @@ The frontend will poll `/api/v1/jobs/{jobId}/status` to check progress.
 
 The frontend expects a WebSocket endpoint for streaming logs in real-time.
 
-**Connection URL:** `ws://localhost:310/ws/logs?jobId={jobId}&type={type}`
+**Connection URL:** `ws://localhost:5555/ws/logs?jobId={jobId}&type={type}`
 
 **Required Message Format:**
 ```json
@@ -114,7 +114,7 @@ The frontend expects a WebSocket endpoint for streaming logs in real-time.
 
 ### Protocol Specification
 
-**Endpoint:** `ws://localhost:310/ws/logs`
+**Endpoint:** `ws://localhost:5555/ws/logs`
 
 **Query Parameters:**
 - `jobId` (required): The job ID to stream logs for
@@ -290,13 +290,13 @@ Use these curl commands to test your implementation:
 
 ```bash
 # Health check
-curl http://localhost:310/health
+curl http://localhost:5555/health
 
 # Upload data
-curl -X POST -F "file=@data.csv" http://localhost:310/api/v1/data/upload
+curl -X POST -F "file=@data.csv" http://localhost:5555/api/v1/data/upload
 
 # Start training
-curl -X POST http://localhost:310/api/v1/train \
+curl -X POST http://localhost:5555/api/v1/train \
   -H "Content-Type: application/json" \
   -d '{
     "datasetId": "your-dataset-id",
@@ -306,7 +306,7 @@ curl -X POST http://localhost:310/api/v1/train \
   }'
 
 # Check job status
-curl http://localhost:310/api/v1/train/{jobId}/status
+curl http://localhost:5555/api/v1/train/{jobId}/status
 ```
 
 ---

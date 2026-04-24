@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules/
+
+# Build outputs
+out/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+coverage/
+
+# Temporary files
+*.tmp
+.cache/
+
+# Electron builder (not needed in container)
+release/
+
+# Documentation
+*.md
+!README.md
